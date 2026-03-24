@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Osobní data (nesdílej svůj skutečný strom!)
+my-family*.html
+my-family*.json
+my-family*.ged
+personal-*.html

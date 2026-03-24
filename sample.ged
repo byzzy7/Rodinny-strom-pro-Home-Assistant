@@ -1,0 +1,91 @@
+0 HEAD
+1 SOUR RodinnýStromHA
+2 NAME Rodinný Strom pro Home Assistant
+2 VERS 2.0.0
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+1 LANG Czech
+1 DATE 2026
+0 @I1@ INDI
+1 NAME František /Novák/
+1 SEX M
+1 BIRT
+2 DATE 1918
+2 PLAC Brno
+1 DEAT
+2 DATE 1982
+1 NOTE Řemeslník, kovodělník. Rád hrál šachy.
+0 @I2@ INDI
+1 NAME Božena /Sládková/
+1 SEX F
+1 BIRT
+2 DATE 1922
+2 PLAC Znojmo
+1 DEAT
+2 DATE 2005
+1 NOTE Učitelka základní školy. Milovnice zahrady.
+0 @I3@ INDI
+1 NAME Jan /Novák/
+1 SEX M
+1 BIRT
+2 DATE 1948
+2 PLAC Brno
+1 NOTE Strojní inženýr. Rád fotografuje přírodu.
+0 @I4@ INDI
+1 NAME Marie /Dvořáková/
+1 SEX F
+1 BIRT
+2 DATE 1950
+2 PLAC Olomouc
+1 NOTE Lékárnice. Sběratelka starožitností.
+0 @I5@ INDI
+1 NAME Tomáš /Novák/
+1 SEX M
+1 BIRT
+2 DATE 1975
+2 PLAC Brno
+1 NOTE Architekt. Rád cestuje, byl ve 40 zemích.
+0 @I6@ INDI
+1 NAME Lucie /Nováková/
+1 SEX F
+1 BIRT
+2 DATE 1978
+2 PLAC Brno
+1 NOTE Veterinářka. Má dva psy a kočku.
+0 @I7@ INDI
+1 NAME Eva /Horáková/
+1 SEX F
+1 BIRT
+2 DATE 1977
+2 PLAC Ostrava
+1 NOTE Grafická designérka.
+0 @I8@ INDI
+1 NAME Adam /Novák/
+1 SEX M
+1 BIRT
+2 DATE 2003
+2 PLAC Brno
+1 NOTE Student gymnázia. Hraje basketbal.
+0 @I9@ INDI
+1 NAME Klára /Nováková/
+1 SEX F
+1 BIRT
+2 DATE 2007
+2 PLAC Brno
+1 NOTE Žákyně základní školy. Hraje klavír.
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 @F2@ FAM
+1 HUSB @I3@
+1 WIFE @I4@
+1 CHIL @I5@
+1 CHIL @I6@
+0 @F3@ FAM
+1 HUSB @I5@
+1 WIFE @I7@
+1 CHIL @I8@
+1 CHIL @I9@
+0 TRLR
