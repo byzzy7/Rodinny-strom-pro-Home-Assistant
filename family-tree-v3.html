@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="cs" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Rodinný strom</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #FFF8F2;
+  --bg2:      #FFF2E8;
+  --surface:  #FFFFFF;
+  --surface2: #F8F2EA;
+  --border:   #EEE5DB;
+  --border2:  #E0D5C8;
+  --text:     #2C1810;
+  --text2:    #7A6558;
+  --text3:    #AAA098;
+  --header-from: #1B3A0F;
+  --header-to:   #3D7D25;
+  --shadow:   rgba(0,0,0,0.10);
+  --shadow2:  rgba(0,0,0,0.18);
+  --overlay:  rgba(30,15,5,0.45);
+  --gold:     #F0A500;
+  --gold-h:   #FFB827;
+  --gold-t:   #7A5000;
+  --coral:    #E8436B;
+  --blue:     #4361EE;
+  --teal:     #11B5A0;
+  --purple:   #9B59B6;
+  --orange:   #E67E22;
+}
+[data-theme="dark"] {
+  --bg:       #151210;
+  --bg2:      #1C1915;
+  --surface:  #232018;
+  --surface2: #2A2720;
+  --border:   #3A342C;
+  --border2:  #4A4238;
+  --text:     #F0E8DC;
+  --text2:    #B0A090;
+  --text3:    #706050;
+  --header-from: #0F2008;
+  --header-to:   #1E4A10;
+  --shadow:   rgba(0,0,0,0.35);
+  --shadow2:  rgba(0,0,0,0.55);
+  --overlay:  rgba(0,0,0,0.65);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; display: flex; flex-direction: column; transition: background 0.3s, color 0.3s; }
+
+/* HEADER */
+.header { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: linear-gradient(135deg, var(--header-from) 0%, var(--header-to) 100%); color: white; flex-shrink: 0; box-shadow: 0 3px 16px var(--shadow2); position: relative; z-index: 10; flex-wrap: wrap; }
+.hlogo { font-size: 1.6rem; flex-shrink: 0; }
+.htitle { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; line-height: 1; }
+.hsub { font-size: 0.68rem; opacity: 0.6; margin-top: 1px; letter-spacing: 0.04em; }
+.hstats { display: flex; gap: 12px; margin-left: 6px; }
+.hstat { display: flex; flex-direction: column; align-items: center; }
+.hstat-n { font-size: 1rem; font-weight: 600; line-height: 1; }
+.hstat-l { font-size: 0.6rem; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.hsearch { flex: 1; min-width: 140px; max-width: 240px; position: relative; }
+.hsearch input { width: 100%; padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.15); color: white; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; outline: none; transition: background 0.2s; }
+.hsearch input::placeholder { color: rgba(255,255,255,0.5); }
+.hsearch input:focus { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.5); }
+.hsearch-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 0.82rem; opacity: 0.6; pointer-events: none; }
+.search-results { position: absolute; top: calc(100% + 6px); left: 0; width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 28px var(--shadow2); z-index: 200; overflow: hidden; display: none; }
+.search-results.visible { display: block; animation: slideDown 0.15s ease; }
+@keyframes slideDown { from { opacity:0; transform: translateY(-5px); } to { opacity:1; transform:none; } }
+.sr-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; transition: background 0.12s; }
+.sr-item:hover { background: var(--surface2); }
+.sr-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: white; flex-shrink: 0; }
+.sr-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.sr-sub { font-size: 0.72rem; color: var(--text3); }
+
+.hbtns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.btn { padding: 6px 13px; border-radius: 20px; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 600; transition: all 0.18s; white-space: nowrap; }
+.btn-gold { background: var(--gold); color: #1a0800; }
+.btn-gold:hover { background: var(--gold-h); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(240,165,0,0.4); }
+.btn-ghost { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+.btn-ghost:hover { background: rgba(255,255,255,0.25); }
+.btn-icon { padding: 6px 10px; font-size: 1rem; }
+
+/* VIEW TABS */
+.view-tabs { display: flex; gap: 0; background: rgba(0,0,0,0.18); border-radius: 20px; overflow: hidden; }
+.vtab { padding: 5px 12px; font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.18s; border: none; background: none; }
+.vtab.active { background: white; color: #1B3A0F; border-radius: 20px; }
+
+/* CANVAS */
+#canvas { flex: 1; position: relative; overflow: hidden; cursor: grab; }
+#canvas:active { cursor: grabbing; }
+#tree-svg { width: 100%; height: 100%; }
+[data-theme="dark"] #canvas { background: radial-gradient(ellipse at 20% 20%, rgba(67,97,238,0.07) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(17,181,160,0.06) 0%, transparent 50%), var(--bg); }
+[data-theme="light"] #canvas { background: radial-gradient(ellipse at 20% 20%, rgba(240,165,0,0.05) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(67,97,238,0.05) 0%, transparent 50%), var(--bg); }
+
+/* TIMELINE */
+#timeline-view { flex: 1; overflow: hidden; display: none; flex-direction: column; }
+#timeline-view.visible { display: flex; }
+#timeline-svg { width: 100%; flex: 1; }
+
+/* INFO PANEL */
+#info-panel { position: absolute; top: 14px; left: 14px; background: var(--surface); border-radius: 18px; padding: 16px 14px 12px; width: 228px; box-shadow: 0 8px 30px var(--shadow2); border: 1px solid var(--border); display: none; z-index: 20; max-height: calc(100vh - 120px); overflow-y: auto; }
+#info-panel.visible { display: block; animation: slideIn 0.2s ease-out; }
+@keyframes slideIn { from { opacity:0; transform: translateX(-10px); } to { opacity:1; transform:none; } }
+.info-close { position: absolute; top: 10px; right: 11px; background: var(--surface2); border: none; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; font-size: 0.8rem; color: var(--text3); display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.info-close:hover { background: var(--border2); color: var(--text); }
+.info-avatar { width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: white; margin: 0 auto 10px; box-shadow: 0 4px 14px var(--shadow2); overflow: hidden; background: #ccc; }
+.info-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.info-name { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; text-align: center; color: var(--text); line-height: 1.2; }
+.info-years { font-size: 0.73rem; color: var(--text3); text-align: center; margin: 3px 0 10px; }
+.info-divider { height: 1px; background: var(--border); margin-bottom: 9px; }
+.info-relations dt { color: var(--text3); font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 7px; font-weight: 600; }
+.info-relations dd { color: var(--text); font-size: 0.81rem; font-weight: 500; }
+.info-note { margin-top: 10px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; border-left: 3px solid var(--gold); font-size: 0.78rem; color: var(--text2); line-height: 1.5; white-space: pre-wrap; }
+.info-actions { display: flex; gap: 6px; margin-top: 12px; }
+.iabtn { flex: 1; padding: 7px 0; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; }
+.iabtn:hover { background: var(--border); color: var(--text); }
+.iabtn.del { border-color: #E8436B33; color: var(--coral); }
+.iabtn.del:hover { background: #FDE8EE; color: var(--coral); }
+
+/* ZOOM */
+.zoom-controls { position: absolute; bottom: 18px; right: 16px; display: flex; flex-direction: column; gap: 5px; }
+.zoom-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border2); font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px var(--shadow); transition: all 0.15s; color: var(--text2); }
+.zoom-btn:hover { background: var(--gold); color: #1a0800; border-color: var(--gold); transform: scale(1.08); }
+
+/* LEGEND */
+.legend { position: absolute; bottom: 18px; left: 14px; background: var(--surface); border-radius: 12px; padding: 9px 13px; box-shadow: 0 2px 12px var(--shadow); border: 1px solid var(--border); font-size: 0.7rem; }
+.legend-title { font-weight: 600; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.legend-item { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: var(--text2); }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.legend-divider { height: 1px; background: var(--border); margin: 6px 0 4px; }
+.legend-hint { color: var(--text3); font-size: 0.65rem; }
+
+/* MODALS */
+.modal-overlay { position: fixed; inset: 0; background: var(--overlay); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(3px); }
+.modal-overlay.visible { display: flex; animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+.modal { background: var(--surface); border-radius: 22px; padding: 26px 24px; width: 460px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 24px 80px var(--shadow2); animation: modalIn 0.2s ease-out; border: 1px solid var(--border); }
+@keyframes modalIn { from { opacity:0; transform: scale(0.95) translateY(10px); } to { opacity:1; transform:none; } }
+.modal-h { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 11px; border: 1.5px solid var(--border2); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; outline: none; transition: border-color 0.2s; background: var(--surface); color: var(--text); }
+.form-group textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--gold); }
+.photo-upload { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 12px; border: 1.5px dashed var(--border2); border-radius: 12px; cursor: pointer; transition: border-color 0.2s; }
+.photo-upload:hover { border-color: var(--gold); }
+.photo-upload input { display: none; }
+.photo-preview { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; overflow: hidden; }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.photo-label { font-size: 0.82rem; color: var(--text2); }
+.photo-hint { font-size: 0.72rem; color: var(--text3); margin-top: 2px; }
+.form-actions { display: flex; gap: 8px; margin-top: 18px; }
+.btn-full { flex: 1; padding: 10px; border-radius: 12px; font-size: 0.88rem; }
+.btn-outline { background: var(--surface); color: var(--text2); border: 1.5px solid var(--border2); }
+.btn-outline:hover { background: var(--surface2); }
+.btn-danger { background: #FDE8EE; color: var(--coral); border: 1.5px solid #F9C0CE; }
+.btn-danger:hover { background: #FACDD8; }
+
+/* IMPORT ZONE */
+.import-zone { border: 2px dashed var(--border2); border-radius: 14px; padding: 22px; text-align: center; margin-bottom: 14px; cursor: pointer; transition: all 0.2s; color: var(--text3); background: var(--surface2); }
+.import-zone:hover { border-color: var(--gold); color: var(--gold-t); }
+.import-zone input { display: none; }
+.import-icon { font-size: 2rem; margin-bottom: 6px; }
+.import-label { font-weight: 600; font-size: 0.88rem; }
+.import-hint { font-size: 0.76rem; margin-top: 3px; opacity: 0.7; }
+
+/* SHARE */
+.share-url { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border2); border-radius: 10px; font-size: 0.78rem; background: var(--surface2); color: var(--text2); outline: none; font-family: monospace; word-break: break-all; }
+.copy-badge { display: inline-block; background: #E5F8F5; color: #076057; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; opacity: 0; transition: opacity 0.3s; }
+.copy-badge.show { opacity: 1; }
+
+/* EXPORT BUTTONS */
+.export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.export-card { border: 1.5px solid var(--border2); border-radius: 14px; padding: 14px; cursor: pointer; transition: all 0.18s; text-align: center; background: var(--surface2); }
+.export-card:hover { border-color: var(--gold); background: var(--bg2); transform: translateY(-2px); box-shadow: 0 6px 20px var(--shadow); }
+.export-card-icon { font-size: 1.8rem; margin-bottom: 6px; }
+.export-card-name { font-weight: 600; font-size: 0.88rem; color: var(--text); }
+.export-card-desc { font-size: 0.72rem; color: var(--text3); margin-top: 2px; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px); background: #2C1810; color: white; padding: 10px 20px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; z-index: 999; transition: transform 0.3s ease; pointer-events: none; white-space: nowrap; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+[data-theme="dark"] .toast { background: var(--gold); color: #1a0800; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="hlogo">🌳</div>
+  <div style="flex-shrink:0">
+    <div class="hsub">Home Assistant · Genealogie</div>
+    <div class="htitle">Rodinný strom</div>
+  </div>
+  <div class="hstats">
+    <div class="hstat"><div class="hstat-n" id="stat-people">0</div><div class="hstat-l">Osob</div></div>
+    <div class="hstat"><div class="hstat-n" id="stat-gen">0</div><div class="hstat-l">Generací</div></div>
+    <div class="hstat"><div class="hstat-n" id="stat-fam">0</div><div class="hstat-l">Rodin</div></div>
+  </div>
+
+  <div class="hsearch">
+    <span class="hsearch-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Hledat osobu…" oninput="doSearch()" onblur="setTimeout(()=>closeSearch(),200)">
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <div class="view-tabs">
+    <button class="vtab active" onclick="switchView('tree', this)">🌲 Strom</button>
+    <button class="vtab" onclick="switchView('timeline', this)">📅 Timeline</button>
+  </div>
+
+  <div class="hbtns">
+    <button class="btn btn-ghost btn-icon" onclick="toggleDark()" id="dark-btn" title="Tmavý režim">🌙</button>
+    <button class="btn btn-ghost btn-icon" onclick="showSettings()" id="ha-status-btn" title="Nastavení HA">⚙️</button>
+    <button class="btn btn-ghost" onclick="showShare()">🔗 Sdílet</button>
+    <button class="btn btn-ghost" onclick="showExport()">📤 Export</button>
+    <button class="btn btn-ghost" onclick="showImport()">📂 GEDCOM</button>
+    <button class="btn btn-gold" onclick="showAdd()">＋ Přidat</button>
+  </div>
+</div>
+
+<!-- TREE VIEW -->
+<div id="canvas">
+  <svg id="tree-svg"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="2" dy="4" stdDeviation="5" flood-opacity="0.08"/></filter></defs><g id="tree-root"></g></svg>
+  <div class="zoom-controls">
+    <button class="zoom-btn" onclick="zoom(0.18)">＋</button>
+    <button class="zoom-btn" onclick="zoom(-0.18)">－</button>
+    <button class="zoom-btn" onclick="resetView()">⌖</button>
+  </div>
+  <div class="legend">
+    <div class="legend-title">Generace</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#E8436B"></div>Prarodiče</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F0A500"></div>Rodiče</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4361EE"></div>Já / Sourozenci</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#11B5A0"></div>Děti</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#9B59B6"></div>Vnuci</div>
+    <div class="legend-divider"></div>
+    <div class="legend-hint">Tah = posun · Kolečko = zoom</div>
+    <div class="legend-hint">Klik na osobu = detail</div>
+  </div>
+</div>
+
+<!-- TIMELINE VIEW -->
+<div id="timeline-view">
+  <svg id="timeline-svg"></svg>
+</div>
+
+<!-- INFO PANEL -->
+<div id="info-panel">
+  <button class="info-close" onclick="closeInfo()">✕</button>
+  <div id="info-avatar" class="info-avatar"></div>
+  <div id="info-name" class="info-name"></div>
+  <div id="info-years" class="info-years"></div>
+  <div class="info-divider"></div>
+  <dl class="info-relations" id="info-relations"></dl>
+  <div id="info-note" class="info-note" style="display:none"></div>
+  <div class="info-actions">
+    <button class="iabtn" onclick="editSelected()">✏️ Upravit</button>
+    <button class="iabtn del" onclick="deleteSelected()">🗑 Smazat</button>
+  </div>
+</div>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-h" id="modal-title">👤 Přidat osobu</div>
+    <input type="hidden" id="f-id">
+
+    <!-- Photo upload -->
+    <div class="photo-upload" onclick="document.getElementById('f-photo-input').click()">
+      <input type="file" id="f-photo-input" accept="image/*" onchange="handlePhotoUpload(event)">
+      <div class="photo-preview" id="f-photo-preview">📷</div>
+      <div>
+        <div class="photo-label">Fotografie</div>
+        <div class="photo-hint">Klikněte pro nahrání · JPG, PNG, WebP</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group"><label>Jméno</label><input type="text" id="f-fn" placeholder="Jan" autocomplete="off"></div>
+      <div class="form-group"><label>Příjmení</label><input type="text" id="f-ln" placeholder="Novák" autocomplete="off"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Pohlaví</label><select id="f-gender" onchange="toggleMaiden(this.value)"><option value="M">♂ Muž</option><option value="F">♀ Žena</option><option value="X">⚥ Neznámé</option></select></div>
+      <div class="form-group" id="maiden-group" style="display:none"><label>Příjmení za svobodna</label><input type="text" id="f-maiden" placeholder="Svobodová" autocomplete="off"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Datum narození</label><input type="text" id="f-birth" placeholder="1.1.1980" autocomplete="off"></div>
+      <div class="form-group"><label>Datum úmrtí</label><input type="text" id="f-death" placeholder="—" autocomplete="off"></div>
+    </div>
+    <div class="form-group"><label>Místo narození</label><input type="text" id="f-place" placeholder="Praha" autocomplete="off"></div>
+    <div class="form-group"><label>Otec</label><select id="f-father"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group"><label>Matka</label><select id="f-mother"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group"><label>Partner / partnerka</label><select id="f-spouse"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group"><label>Poznámky a dokumenty</label><textarea id="f-note" placeholder="Životopis, povolání, zajímavosti, odkazy na dokumenty…"></textarea></div>
+    <div class="form-actions">
+      <button class="btn btn-outline btn-full" onclick="closeModal()">Zrušit</button>
+      <button class="btn btn-gold btn-full" onclick="savePerson()">✓ Uložit</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="import-modal" onclick="if(event.target===this)closeImport()">
+  <div class="modal">
+    <div class="modal-h">📂 Import GEDCOM</div>
+    <div class="import-zone" onclick="document.getElementById('gedcom-file').click()">
+      <input type="file" id="gedcom-file" accept=".ged,.gedcom" onchange="handleGEDCOM(event)">
+      <div class="import-icon">📄</div>
+      <div class="import-label">Klikněte pro výběr souboru</div>
+      <div class="import-hint">Přijímá formát .ged nebo .gedcom</div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text3);text-align:center;line-height:1.6">Exportujte GEDCOM z <strong>Ancestry</strong>, <strong>MyHeritage</strong>, <strong>Gramps</strong>, <strong>FamilySearch</strong> nebo <strong>MacFamilyTree</strong>.</p>
+    <div class="form-actions" style="margin-top:14px"><button class="btn btn-outline btn-full" onclick="closeImport()">Zavřít</button></div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal" onclick="if(event.target===this)closeExport()">
+  <div class="modal">
+    <div class="modal-h">📤 Export dat</div>
+    <div class="export-grid">
+      <div class="export-card" onclick="exportJSON()">
+        <div class="export-card-icon">📋</div>
+        <div class="export-card-name">JSON</div>
+        <div class="export-card-desc">Kompletní data včetně fotek</div>
+      </div>
+      <div class="export-card" onclick="exportGEDCOM()">
+        <div class="export-card-icon">🧬</div>
+        <div class="export-card-name">GEDCOM</div>
+        <div class="export-card-desc">Standard pro genealogii</div>
+      </div>
+      <div class="export-card" onclick="exportCSV()">
+        <div class="export-card-icon">📊</div>
+        <div class="export-card-name">CSV</div>
+        <div class="export-card-desc">Tabulkový přehled osob</div>
+      </div>
+      <div class="export-card" onclick="printTree()">
+        <div class="export-card-icon">🖨️</div>
+        <div class="export-card-name">Tisk / PDF</div>
+        <div class="export-card-desc">Vytiskněte strom</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:0 0 14px;padding-top:14px">
+      <div class="export-card" onclick="clearStorage()" style="border-color:#F9C0CE;background:var(--surface2)">
+        <div class="export-card-icon">🗑️</div>
+        <div class="export-card-name" style="color:var(--coral)">Resetovat data</div>
+        <div class="export-card-desc">Smaže vše, vrátí ukázková data</div>
+      </div>
+    </div>
+    <div class="form-actions"><button class="btn btn-outline btn-full" onclick="closeExport()">Zavřít</button></div>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="modal-overlay" id="share-modal" onclick="if(event.target===this)closeShare()">
+  <div class="modal">
+    <div class="modal-h">🔗 Sdílet rodinný strom</div>
+    <p style="font-size:0.84rem;color:var(--text2);margin-bottom:14px;line-height:1.6">Data jsou zakódována přímo v odkazu (URL). Nikomu nic neodesíláte — vše zůstává lokální.</p>
+    <div class="form-group">
+      <label>Odkaz ke sdílení <span class="copy-badge" id="copy-badge">✓ Zkopírováno</span></label>
+      <textarea id="share-url" class="share-url" readonly rows="4" onclick="this.select()"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline btn-full" onclick="closeShare()">Zavřít</button>
+      <button class="btn btn-gold btn-full" onclick="copyShareUrl()">📋 Kopírovat</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-h">⚙️ Připojení k Home Assistantu</div>
+    <p style="font-size:0.83rem;color:var(--text2);margin-bottom:18px;line-height:1.6">
+      Data se uloží přímo na HA server jako entita <code style="background:var(--surface2);padding:2px 6px;border-radius:6px;font-size:0.78rem">sensor.family_tree</code>.
+      Přežijí restart HA i vymazání cache a jsou dostupná ze všech zařízení v síti.
+    </p>
+    <div class="form-group">
+      <label>Adresa Home Assistantu</label>
+      <input type="url" id="s-url" placeholder="http://homeassistant.local:8123" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Long-Lived Access Token</label>
+      <input type="password" id="s-token" placeholder="eyJhbGci…" autocomplete="off">
+    </div>
+    <div id="s-status" style="font-size:0.8rem;min-height:22px;margin-bottom:8px"></div>
+    <div class="form-actions">
+      <button class="btn btn-outline btn-full" onclick="closeSettings()">Zavřít</button>
+      <button class="btn btn-ghost btn-full" style="color:var(--teal);border-color:var(--teal)" onclick="testHA()">🔌 Test spojení</button>
+      <button class="btn btn-gold btn-full" onclick="saveSettings()">✓ Uložit</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════
+//  GENERATION COLORS
+// ═══════════════════════════════
+const GC = [
+  { m:'#E8436B', l:'#FDE8EE', t:'#7A1232' },
+  { m:'#F0A500', l:'#FEF3DB', t:'#7A5000' },
+  { m:'#4361EE', l:'#ECF0FD', t:'#1A2E99' },
+  { m:'#11B5A0', l:'#E5F8F5', t:'#076057' },
+  { m:'#9B59B6', l:'#F3E9F9', t:'#5A1F82' },
+  { m:'#E67E22', l:'#FDF0E6', t:'#7A3C00' },
+];
+const gc = d => GC[Math.min(Math.max(d,0), GC.length-1)];
+
+// ═══════════════════════════════
+//  SAMPLE DATA
+// ═══════════════════════════════
+let people = [
+  { id:'g1m', fn:'František', ln:'Novák',       birth:1918, death:1982, gender:'M', place:'Brno',   pids:[], sids:['g1f'], cids:['p1','p2'], note:'Řemeslník, kovodělník. Rád hrál šachy.', photo:'' },
+  { id:'g1f', fn:'Božena',    ln:'Sládková',    birth:1922, death:2005, gender:'F', place:'Znojmo', pids:[], sids:['g1m'], cids:['p1','p2'], note:'Učitelka základní školy. Milovnice zahrady.', photo:'' },
+  { id:'g2m', fn:'Alois',     ln:'Dvořák',      birth:1920, death:1990, gender:'M', place:'Olomouc',pids:[], sids:['g2f'], cids:['p3'],      note:'Kovář. Dobrovolný hasič.', photo:'' },
+  { id:'g2f', fn:'Anna',      ln:'Procházková', birth:1924, death:2010, gender:'F', place:'Litovel', pids:[], sids:['g2m'], cids:['p3'],      note:'Kuchařka a hospodyně.', photo:'' },
+  { id:'p1',  fn:'Jan',       ln:'Novák',       birth:1948, death:null,  gender:'M', place:'Brno',   pids:['g1m','g1f'], sids:['p3'],  cids:['c1','c2'], note:'Strojní inženýr. Rád fotografuje přírodu.', photo:'' },
+  { id:'p2',  fn:'Věra',      ln:'Horáčková',   birth:1951, death:null,  gender:'F', place:'Praha',  pids:['g1m','g1f'], sids:['px1'], cids:['cx1'], note:'Ekonomka. Ráda čte detektivky.', photo:'' },
+  { id:'px1', fn:'Petr',      ln:'Horáček',     birth:1948, death:null,  gender:'M', place:'Praha',  pids:[], sids:['p2'], cids:['cx1'], note:'', photo:'' },
+  { id:'cx1', fn:'Ondřej',    ln:'Horáček',     birth:1976, death:null,  gender:'M', place:'Praha',  pids:['p2','px1'], sids:[], cids:[], note:'IT konzultant.', photo:'' },
+  { id:'p3',  fn:'Marie',     ln:'Dvořáková',   birth:1950, death:null,  gender:'F', place:'Olomouc',pids:['g2m','g2f'], sids:['p1'],  cids:['c1','c2'], note:'Lékárnice. Sběratelka starožitností.', photo:'' },
+  { id:'c1',  fn:'Tomáš',     ln:'Novák',       birth:1975, death:null,  gender:'M', place:'Brno',   pids:['p1','p3'],   sids:['s1'],  cids:['gc1','gc2'], note:'Architekt. Rád cestuje, byl ve 40 zemích.', photo:'' },
+  { id:'c2',  fn:'Lucie',     ln:'Nováková',    birth:1978, death:null,  gender:'F', place:'Brno',   pids:['p1','p3'],   sids:[],      cids:[], note:'Veterinářka. Má dva psy a kočku.', photo:'' },
+  { id:'s1',  fn:'Eva',       ln:'Horáková',    birth:1977, death:null,  gender:'F', place:'Ostrava',pids:[],             sids:['c1'],  cids:['gc1','gc2'], note:'Grafická designérka.', photo:'' },
+  { id:'gc1', fn:'Adam',      ln:'Novák',       birth:2003, death:null,  gender:'M', place:'Brno',   pids:['c1','s1'],   sids:[],      cids:[], note:'Student gymnázia. Hraje basketbal.', photo:'' },
+  { id:'gc2', fn:'Klára',     ln:'Nováková',    birth:2007, death:null,  gender:'F', place:'Brno',   pids:['c1','s1'],   sids:[],      cids:[], note:'Žákyně základní školy. Hraje klavír.', photo:'' },
+];
+
+// ═══════════════════════════════
+//  LAYOUT
+// ═══════════════════════════════
+const NW=170, NH=84, HG=46, VG=104;
+let layout={}, tx={x:0,y:0,scale:1}, selId=null;
+const byId = () => Object.fromEntries(people.map(p=>[p.id,p]));
+const initials = (fn,ln) => ((fn||'?')[0]+(ln||'?')[0]).toUpperCase();
+const yearFrom = s => { if(!s) return null; const m = String(s).match(/\d{4}/); return m ? parseInt(m[0]) : null; };
+const lifespan = p => {
+  const b = p.birth ? `* ${p.birth}` : null;
+  const d = p.death ? `† ${p.death}` : null;
+  if(b && d) return `${b}   ${d}`;
+  if(b) return b;
+  if(d) return d;
+  return 'datum neznámé';
+};
+
+function computeLayout(ps) {
+  if(!ps.length) return {};
+  const bi = Object.fromEntries(ps.map(p=>[p.id,p]));
+  const depth={};
+  const roots = ps.filter(p=>p.pids.length===0);
+  const q = roots.map(r=>[r.id,0]);
+  while(q.length) {
+    const [id,d]=q.shift();
+    if(depth[id]!==undefined) continue;
+    depth[id]=d;
+    (bi[id]?.cids||[]).forEach(cid=>q.push([cid,d+1]));
+  }
+  let changed=true;
+  while(changed) {
+    changed=false;
+    ps.forEach(p=>{ if(depth[p.id]===undefined){ for(const s of p.sids){ if(depth[s]!==undefined){ depth[p.id]=depth[s]; changed=true; break; } } } });
+  }
+  ps.forEach(p=>{ if(depth[p.id]===undefined) depth[p.id]=0; });
+  const bd={};
+  ps.forEach(p=>{ const d=depth[p.id]; if(!bd[d]) bd[d]=[]; if(!bd[d].includes(p.id)) bd[d].push(p.id); });
+  Object.values(bd).forEach(ids=>ids.sort((a,b)=>{ const pa=bi[a],pb=bi[b]; if(!pa||!pb) return 0; if(pa.sids.includes(b)) return -1; if(pb.sids.includes(a)) return 1; if(pa.pids.some(x=>pb.pids.includes(x))) return -1; return 0; }));
+  const pos={};
+  Object.entries(bd).sort(([a],[b])=>+a-+b).forEach(([d,ids])=>{ const total=ids.length*NW+(ids.length-1)*HG, sx=-total/2+NW/2; ids.forEach((id,i)=>{ pos[id]={x:sx+i*(NW+HG),y:+d*(NH+VG),d:+d}; }); });
+  return pos;
+}
+
+// ═══════════════════════════════
+//  SVG HELPERS
+// ═══════════════════════════════
+const NS='http://www.w3.org/2000/svg';
+const S=(t,a={})=>{ const e=document.createElementNS(NS,t); Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v)); return e; };
+const ST=(t,a={})=>{ const e=S('text',a); e.textContent=t; return e; };
+
+// ═══════════════════════════════
+//  RENDER
+// ═══════════════════════════════
+function renderTree() {
+  layout = computeLayout(people);
+  const bi = byId();
+  const root = document.getElementById('tree-root');
+  root.innerHTML='';
+  if(!Object.keys(layout).length){ updateStats(); return; }
+
+  // --- Connections ---
+  const cl=S('g'); root.appendChild(cl);
+  const drawn=new Set();
+  people.forEach(p=>{
+    const pp=layout[p.id]; if(!pp) return;
+    const col=gc(pp.d);
+    p.cids.forEach(cid=>{
+      const cp=layout[cid]; if(!cp) return;
+      const ch=bi[cid];
+      const coId=ch?.pids.find(pid=>pid!==p.id&&layout[pid]);
+      const co=coId?layout[coId]:null;
+      const fx=co?(pp.x+co.x)/2:pp.x;
+      const fy=pp.y+NH/2+4, ty=cp.y-NH/2-4, my=(fy+ty)/2;
+      const key=[p.id,cid].sort().join('|');
+      if(drawn.has(key)) return; drawn.add(key);
+      const path=S('path',{d:`M ${fx} ${fy} C ${fx} ${my} ${cp.x} ${my} ${cp.x} ${ty}`,fill:'none',stroke:col.m,'stroke-width':'2',opacity:'0.4','stroke-linecap':'round'});
+      cl.appendChild(path);
+    });
+    p.sids.forEach(sid=>{
+      if(sid<p.id) return;
+      const sp=layout[sid]; if(!sp) return;
+      const mx=(pp.x+sp.x)/2, y=(pp.y+sp.y)/2;
+      const l1=S('line',{x1:String(pp.x+NW/2),y1:String(pp.y),x2:String(mx-10),y2:String(y),stroke:'#E8436B','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.55'});
+      const l2=S('line',{x1:String(mx+10),y1:String(y),x2:String(sp.x-NW/2),y2:String(sp.y),stroke:'#E8436B','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.55'});
+      const ht=ST('♥',{x:String(mx),y:String(y+5),'text-anchor':'middle','font-size':'13',fill:'#E8436B',opacity:'0.85'});
+      cl.appendChild(l1); cl.appendChild(l2); cl.appendChild(ht);
+    });
+  });
+
+  // --- Nodes ---
+  const nl=S('g'); root.appendChild(nl);
+  people.forEach(p=>{
+    const pos=layout[p.id]; if(!pos) return;
+    const col=gc(pos.d), isSel=p.id===selId, dead=!!p.death;
+    const g=S('g',{transform:`translate(${pos.x-NW/2},${pos.y-NH/2})`,style:'cursor:pointer'});
+    g.addEventListener('click',()=>selectPerson(p.id));
+
+    // shadow
+    const sh=S('rect',{x:'3',y:'5',width:String(NW),height:String(NH),rx:'14',fill:col.m,opacity:dead?'0.04':'0.10'});
+    // card
+    const card=S('rect',{width:String(NW),height:String(NH),rx:'14',fill:isSel?col.l:(dead?'var(--surface2)':'var(--surface)'),stroke:isSel?col.m:(dead?'var(--border)':'var(--border2)'),'stroke-width':isSel?'2.5':'1'});
+    // color bar
+    const bar=S('rect',{width:'9',height:String(NH),rx:'14',fill:col.m,opacity:dead?'0.38':'1'});
+    const barMask=S('rect',{x:'4',width:'9',height:String(NH),fill:isSel?col.l:(dead?'var(--surface2)':'var(--surface)')});
+
+    // avatar area
+    const avBg=S('circle',{cx:'40',cy:String(NH/2),r:'24',fill:col.l});
+    const avCir=S('circle',{cx:'40',cy:String(NH/2),r:'19',fill:col.m,opacity:dead?'0.45':'1'});
+
+    // photo or initials
+    if(p.photo) {
+      const img=S('image',{x:'21',y:String(NH/2-19),width:'38',height:'38','href':p.photo});
+      img.setAttribute('clip-path','url(#ac'+p.id+')');
+      const cp=S('clipPath',{id:'ac'+p.id});
+      cp.appendChild(S('circle',{cx:'40',cy:String(NH/2),r:'19'}));
+      if(!document.getElementById('ac'+p.id)) {
+        const defs=document.querySelector('#tree-svg defs')||S('defs');
+        defs.appendChild(cp);
+      }
+      g.appendChild(sh); g.appendChild(card); g.appendChild(bar); g.appendChild(barMask); g.appendChild(avBg); g.appendChild(avCir); g.appendChild(img);
+    } else {
+      const avTxt=ST(initials(p.fn,p.ln),{x:'40',y:String(NH/2+6),'text-anchor':'middle',fill:'white','font-size':'13','font-weight':'700','font-family':'Playfair Display, Georgia, serif'});
+      g.appendChild(sh); g.appendChild(card); g.appendChild(bar); g.appendChild(barMask); g.appendChild(avBg); g.appendChild(avCir); g.appendChild(avTxt);
+    }
+
+    if(dead) g.appendChild(ST('†',{x:'40',y:String(NH/2+21),'text-anchor':'middle',fill:col.m,'font-size':'11',opacity:'0.55'}));
+
+    g.appendChild(ST(p.fn, {x:'70',y:'30',fill:'var(--text)','font-size':'13','font-weight':'700','font-family':'Playfair Display,Georgia,serif'}));
+    g.appendChild(ST(p.ln, {x:'70',y:'47',fill:dead?'var(--text3)':'var(--text2)','font-size':'11','font-family':'Playfair Display,Georgia,serif'}));
+    const birthDisp = p.birth ? (p.death ? `${p.birth} – ${p.death}` : `* ${p.birth}`) : 'datum neznámé';
+    g.appendChild(ST(birthDisp, {x:'70',y:'64',fill:'var(--text3)','font-size':'10','font-family':'DM Sans,sans-serif'}));
+    g.appendChild(ST(p.gender==='M'?'♂':p.gender==='F'?'♀':'⚥',{x:String(NW-9),y:'16','text-anchor':'end',fill:col.m,'font-size':'11',opacity:dead?'0.38':'0.75'}));
+
+    if(p.note&&p.note.trim()) g.appendChild(ST('📝',{x:String(NW-9),y:String(NH-8),'text-anchor':'end','font-size':'10',opacity:'0.6'}));
+
+    if(isSel) { const ring=S('rect',{x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:col.m,'stroke-width':'2','stroke-dasharray':'6 3',opacity:'0.5'}); g.appendChild(ring); }
+
+    nl.appendChild(g);
+  });
+
+  updateStats();
+  applyTx();
+}
+
+function updateStats() {
+  const depths=Object.values(layout).map(p=>p.d);
+  const gens=depths.length ? Math.max(...depths)-Math.min(...depths)+1 : 0;
+  document.getElementById('stat-people').textContent=people.length;
+  document.getElementById('stat-gen').textContent=gens;
+  document.getElementById('stat-fam').textContent=people.filter(p=>p.cids.length>0).length;
+}
+
+function applyTx() {
+  document.getElementById('tree-root').setAttribute('transform',`translate(${tx.x},${tx.y}) scale(${tx.scale})`);
+}
+
+// ═══════════════════════════════
+//  TIMELINE
+// ═══════════════════════════════
+function renderTimeline() {
+  const svg = document.getElementById('timeline-svg');
+  svg.innerHTML='';
+  const has=people.filter(p=>p.birth&&yearFrom(p.birth));
+  if(!has.length){ const t=document.createElementNS(NS,'text'); t.textContent='Žádné osoby s datem narození'; t.setAttribute('x','50%'); t.setAttribute('y','50%'); t.setAttribute('text-anchor','middle'); t.setAttribute('fill','var(--text3)'); svg.appendChild(t); return; }
+
+  const minY=Math.min(...has.map(p=>yearFrom(p.birth)));
+  const maxY=Math.max(...has.map(p=>yearFrom(p.death)||new Date().getFullYear()));
+  const range=maxY-minY||1;
+  const W=svg.clientWidth||900, H=svg.clientHeight||500;
+  const L=60, R=20, T=50, B=50;
+  const tw=W-L-R;
+
+  const yearToX = y => L+(y-minY)/range*tw;
+
+  // axis
+  const axis=S('line',{x1:String(L),y1:String(H-B),x2:String(W-R),y2:String(H-B),stroke:'var(--border2)','stroke-width':'1.5'});
+  svg.appendChild(axis);
+
+  // tick marks
+  const step=range>100?25:range>50?10:range>20?5:1;
+  let yr=Math.ceil(minY/step)*step;
+  while(yr<=maxY) {
+    const x=yearToX(yr);
+    const tick=S('line',{x1:String(x),y1:String(H-B),x2:String(x),y2:String(H-B+6),stroke:'var(--border2)','stroke-width':'1'});
+    const lbl=ST(String(yr),{x:String(x),y:String(H-B+16),'text-anchor':'middle','font-size':'10',fill:'var(--text3)','font-family':'DM Sans,sans-serif'});
+    svg.appendChild(tick); svg.appendChild(lbl);
+    yr+=step;
+  }
+
+  // title
+  const tit=ST('Časová osa – ' + has.length + ' osob',{x:String(W/2),y:'24','text-anchor':'middle','font-size':'14','font-weight':'600',fill:'var(--text)','font-family':'Playfair Display,Georgia,serif'});
+  svg.appendChild(tit);
+
+  // sort by birth
+  const sorted=[...has].sort((a,b)=>a.birth-b.birth);
+  const rowH=28;
+  const maxRows=Math.floor((H-T-B)/rowH);
+  const visCount=Math.min(sorted.length,maxRows);
+
+  sorted.forEach((p,i)=>{
+    if(i>=visCount) return;
+    layout[p.id] = layout[p.id] || {d:0};
+    const col=gc(layout[p.id]?.d||0);
+    const endY=yearFrom(p.death)||new Date().getFullYear();
+    const x1=yearToX(yearFrom(p.birth)), x2=yearToX(endY);
+    const y=T+i*rowH+rowH/2;
+
+    // bar
+    const barW=Math.max(x2-x1,4);
+    const bar=S('rect',{x:String(x1),y:String(y-9),width:String(barW),height:'18',rx:'9',fill:col.m,opacity:p.death?'0.5':'0.85'});
+    svg.appendChild(bar);
+
+    // name label
+    const name=ST(`${p.fn} ${p.ln}`,{x:String(x1+6),y:String(y+5),'font-size':'11',fill:col.t,'font-weight':'600','font-family':'DM Sans,sans-serif'});
+    svg.appendChild(name);
+
+    // dot at birth
+    const dot=S('circle',{cx:String(x1),cy:String(y),r:'4',fill:col.m});
+    svg.appendChild(dot);
+
+    // dot at death
+    if(p.death) {
+      const ddot=S('circle',{cx:String(x2),cy:String(y),r:'3',fill:'none',stroke:col.m,'stroke-width':'1.5'});
+      svg.appendChild(ddot);
+    }
+  });
+}
+
+// ═══════════════════════════════
+//  VIEW SWITCH
+// ═══════════════════════════════
+let currentView='tree';
+function switchView(view, el) {
+  currentView=view;
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('canvas').style.display = view==='tree' ? 'block' : 'none';
+  const tl = document.getElementById('timeline-view');
+  if(view==='timeline') { tl.classList.add('visible'); tl.style.display='flex'; renderTimeline(); }
+  else { tl.classList.remove('visible'); tl.style.display='none'; }
+  closeInfo();
+}
+
+// ═══════════════════════════════
+//  PAN & ZOOM
+// ═══════════════════════════════
+let dragging=false, dragLast=null;
+const canvas=document.getElementById('canvas');
+canvas.addEventListener('mousedown',e=>{ if(e.target.closest('g[style*="cursor:pointer"]')) return; dragging=true; dragLast={x:e.clientX,y:e.clientY}; e.preventDefault(); });
+document.addEventListener('mousemove',e=>{ if(!dragging||!dragLast) return; tx.x+=e.clientX-dragLast.x; tx.y+=e.clientY-dragLast.y; dragLast={x:e.clientX,y:e.clientY}; applyTx(); });
+document.addEventListener('mouseup',()=>{ dragging=false; dragLast=null; });
+canvas.addEventListener('wheel',e=>{ e.preventDefault(); const d=-e.deltaY*0.0012, ns=Math.max(0.12,Math.min(4,tx.scale+d)); const r=canvas.getBoundingClientRect(); const mx=e.clientX-r.left,my=e.clientY-r.top; tx.x=mx-(mx-tx.x)*(ns/tx.scale); tx.y=my-(my-tx.y)*(ns/tx.scale); tx.scale=ns; applyTx(); },{passive:false});
+
+function zoom(d){ const svg=document.getElementById('tree-svg'); const ns=Math.max(0.12,Math.min(4,tx.scale+d)); tx.x=(svg.clientWidth||800)/2-((svg.clientWidth||800)/2-tx.x)*(ns/tx.scale); tx.y=(svg.clientHeight||600)/2-((svg.clientHeight||600)/2-tx.y)*(ns/tx.scale); tx.scale=ns; applyTx(); }
+function resetView(){ const svg=document.getElementById('tree-svg'); tx={x:(svg.clientWidth||800)/2,y:(svg.clientHeight||600)/3.5,scale:0.9}; applyTx(); }
+
+// ═══════════════════════════════
+//  DARK MODE
+// ═══════════════════════════════
+function toggleDark(){ const html=document.documentElement; const dark=html.dataset.theme==='dark'; html.dataset.theme=dark?'light':'dark'; document.getElementById('dark-btn').textContent=dark?'🌙':'☀️'; localStorage.setItem(LS_THEME, dark?'light':'dark'); renderTree(); }
+
+// ═══════════════════════════════
+//  SELECT / INFO PANEL
+// ═══════════════════════════════
+function selectPerson(id){ selId=id; renderTree(); showInfo(id); }
+function showInfo(id){
+  const p=people.find(x=>x.id===id); if(!p) return;
+  const bi=byId(), pos=layout[id], col=pos?gc(pos.d):GC[2];
+
+  // avatar
+  const av=document.getElementById('info-avatar');
+  av.style.background=col.m; av.style.fontSize='';
+  if(p.photo){ av.innerHTML=`<img src="${p.photo}" alt="">`; } else { av.innerHTML=initials(p.fn,p.ln); av.style.fontFamily='Playfair Display,serif'; av.style.fontSize='1.3rem'; }
+
+  document.getElementById('info-name').textContent=`${p.fn} ${p.ln}`;
+  const maidenStr = (p.gender==='F' && p.maiden) ? `  ·  roz. ${p.maiden}` : '';
+  document.getElementById('info-years').textContent=lifespan(p)+(p.place?`  ·  ${p.place}`:'')+maidenStr;
+
+  const parents=p.pids.map(x=>bi[x]).filter(Boolean);
+  const spouses=p.sids.map(x=>bi[x]).filter(Boolean);
+  const children=p.cids.map(x=>bi[x]).filter(Boolean);
+  const siblings=people.filter(q=>q.id!==id&&q.pids.some(pid=>p.pids.includes(pid)));
+
+  const rels=document.getElementById('info-relations'); rels.innerHTML='';
+  const add=(lbl,list)=>{ if(!list.length) return; const dt=document.createElement('dt'); dt.textContent=lbl; rels.appendChild(dt); const dd=document.createElement('dd'); dd.textContent=list.map(x=>`${x.fn} ${x.ln}`).join(', '); rels.appendChild(dd); };
+  add('Rodiče',parents); add(spouses.length>1?'Partneři':'Partner/ka',spouses); add('Děti',children); add('Sourozenci',siblings);
+
+  const noteEl=document.getElementById('info-note');
+  if(p.note&&p.note.trim()){ noteEl.textContent=p.note; noteEl.style.display=''; } else { noteEl.style.display='none'; }
+
+  document.getElementById('info-panel').classList.add('visible');
+}
+function closeInfo(){ selId=null; document.getElementById('info-panel').classList.remove('visible'); renderTree(); }
+
+// ═══════════════════════════════
+//  SEARCH
+// ═══════════════════════════════
+function doSearch(){
+  const q=document.getElementById('search-input').value.trim().toLowerCase();
+  const box=document.getElementById('search-results');
+  if(!q){ box.classList.remove('visible'); return; }
+  const matches=people.filter(p=>`${p.fn} ${p.ln}`.toLowerCase().includes(q)||(p.birth&&String(p.birth).includes(q))||(p.place&&p.place.toLowerCase().includes(q)));
+  if(!matches.length){ box.innerHTML='<div style="padding:14px;text-align:center;font-size:0.82rem;color:var(--text3)">Žádné výsledky</div>'; box.classList.add('visible'); return; }
+  const pos=layout;
+  box.innerHTML=matches.slice(0,8).map(p=>{ const d=pos[p.id]?.d??0; const col=gc(d); return `<div class="sr-item" onclick="pickSearch('${p.id}')"><div class="sr-dot" style="background:${col.m}">${initials(p.fn,p.ln)}</div><div><div class="sr-name">${p.fn} ${p.ln}</div><div class="sr-sub">${lifespan(p)}${p.place?' · '+p.place:''}</div></div></div>`; }).join('');
+  box.classList.add('visible');
+}
+function pickSearch(id){ document.getElementById('search-input').value=''; document.getElementById('search-results').classList.remove('visible'); selectPerson(id); }
+function closeSearch(){ setTimeout(()=>document.getElementById('search-results').classList.remove('visible'),200); }
+
+// ═══════════════════════════════
+//  ADD / EDIT
+// ═══════════════════════════════
+let photoData='';
+function showAdd(){
+  photoData='';
+  document.getElementById('f-id').value='';
+  document.getElementById('modal-title').textContent='👤 Přidat osobu';
+  document.getElementById('f-photo-preview').innerHTML='📷';
+  populateSelects(null);
+  document.getElementById('add-modal').classList.add('visible');
+  document.getElementById('f-fn').focus();
+}
+function editSelected(){
+  const p=people.find(x=>x.id===selId); if(!p) return;
+  photoData=p.photo||'';
+  document.getElementById('f-id').value=p.id;
+  document.getElementById('modal-title').textContent='✏️ Upravit osobu';
+  document.getElementById('f-fn').value=p.fn||'';
+  document.getElementById('f-ln').value=p.ln||'';
+  document.getElementById('f-maiden').value=p.maiden||'';
+  document.getElementById('f-birth').value=p.birth||'';
+  document.getElementById('f-death').value=p.death||'';
+  document.getElementById('f-place').value=p.place||'';
+  document.getElementById('f-note').value=p.note||'';
+  document.getElementById('f-gender').value=p.gender||'X';
+  toggleMaiden(p.gender||'X');
+  const prev=document.getElementById('f-photo-preview');
+  if(p.photo){ prev.innerHTML=`<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; } else { prev.innerHTML='📷'; }
+  populateSelects(p);
+  closeInfo();
+  document.getElementById('add-modal').classList.add('visible');
+}
+function populateSelects(editing){
+  ['f-father','f-mother','f-spouse'].forEach(sid=>{
+    const sel=document.getElementById(sid);
+    sel.innerHTML='<option value="">— nevybráno —</option>';
+    people.filter(p=>!editing||p.id!==editing.id).forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=`${p.fn} ${p.ln}${p.birth?' ('+yearFrom(p.birth)+')':''}`; sel.appendChild(o); });
+  });
+  if(editing){
+    const bi=byId();
+    const fId=editing.pids.find(id=>bi[id]&&bi[id].gender==='M');
+    const mId=editing.pids.find(id=>bi[id]&&bi[id].gender==='F');
+    if(fId) document.getElementById('f-father').value=fId;
+    if(mId) document.getElementById('f-mother').value=mId;
+    if(editing.sids[0]) document.getElementById('f-spouse').value=editing.sids[0];
+  }
+}
+function handlePhotoUpload(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ photoData=ev.target.result; const prev=document.getElementById('f-photo-preview'); prev.innerHTML=`<img src="${photoData}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }; r.readAsDataURL(f); }
+function toggleMaiden(g){ document.getElementById('maiden-group').style.display=(g==='F')?'':'none'; }
+function closeModal(){ document.getElementById('add-modal').classList.remove('visible'); ['f-fn','f-ln','f-maiden','f-birth','f-death','f-place','f-note'].forEach(id=>{ document.getElementById(id).value=''; }); ['f-gender','f-father','f-mother','f-spouse'].forEach(id=>{ document.getElementById(id).selectedIndex=0; }); toggleMaiden('M'); photoData=''; document.getElementById('f-photo-preview').innerHTML='📷'; }
+function savePerson(){
+  const fn=document.getElementById('f-fn').value.trim();
+  const ln=document.getElementById('f-ln').value.trim();
+  if(!fn||!ln){ toast('Vyplňte jméno a příjmení'); return; }
+  const eid=document.getElementById('f-id').value;
+  const birth=document.getElementById('f-birth').value.trim()||null;
+  const death=document.getElementById('f-death').value.trim()||null;
+  const gender=document.getElementById('f-gender').value;
+  const maiden=document.getElementById('f-maiden').value.trim()||null;
+  const place=document.getElementById('f-place').value.trim();
+  const note=document.getElementById('f-note').value.trim();
+  const fId=document.getElementById('f-father').value;
+  const mId=document.getElementById('f-mother').value;
+  const spId=document.getElementById('f-spouse').value;
+  const pids=[fId,mId].filter(Boolean);
+  const sids=spId?[spId]:[];
+
+  if(eid) {
+    // edit
+    const p=people.find(x=>x.id===eid); if(!p) return;
+    // remove old relations
+    p.pids.forEach(pid=>{ const par=people.find(x=>x.id===pid); if(par) par.cids=par.cids.filter(c=>c!==eid); });
+    p.sids.forEach(sid=>{ const sp=people.find(x=>x.id===sid); if(sp) sp.sids=sp.sids.filter(s=>s!==eid); });
+    Object.assign(p,{fn,ln,maiden,birth,death,gender,place,note,pids,sids,photo:photoData||p.photo});
+    toast(`${fn} ${ln} upraven`);
+  } else {
+    const id='p_'+Date.now();
+    people.push({id,fn,ln,maiden,birth,death,gender,place,note,pids,sids,cids:[],photo:photoData||''});
+    toast(`${fn} ${ln} přidán`);
+  }
+  // apply new relations
+  const eid2 = eid || people[people.length-1].id;
+  if(fId){ const f=people.find(p=>p.id===fId); if(f&&!f.cids.includes(eid2)) f.cids.push(eid2); }
+  if(mId){ const m=people.find(p=>p.id===mId); if(m&&!m.cids.includes(eid2)) m.cids.push(eid2); }
+  if(spId){ const s=people.find(p=>p.id===spId); if(s&&!s.sids.includes(eid2)) s.sids.push(eid2); }
+  closeModal(); saveData(); renderTree();
+}
+
+// ═══════════════════════════════
+//  DELETE
+// ═══════════════════════════════
+function deleteSelected(){
+  const p=people.find(x=>x.id===selId); if(!p) return;
+  if(!confirm(`Opravdu smazat ${p.fn} ${p.ln}?`)) return;
+  // remove references
+  people.forEach(q=>{ q.pids=q.pids.filter(x=>x!==selId); q.sids=q.sids.filter(x=>x!==selId); q.cids=q.cids.filter(x=>x!==selId); });
+  people=people.filter(x=>x.id!==selId);
+  toast(`${p.fn} ${p.ln} smazán`);
+  selId=null; closeInfo(); saveData(); renderTree();
+}
+
+// ═══════════════════════════════
+//  GEDCOM IMPORT
+// ═══════════════════════════════
+function showImport(){ document.getElementById('import-modal').classList.add('visible'); }
+function closeImport(){ document.getElementById('import-modal').classList.remove('visible'); }
+function handleGEDCOM(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ parseGEDCOM(ev.target.result); closeImport(); }; r.readAsText(f,'UTF-8'); }
+function parseGEDCOM(text){
+  const lines=text.split(/\r?\n/); const inds={}, fams={};
+  let cur=null, ct=null, bCtx=false, dCtx=false;
+  for(const raw of lines){
+    const parts=raw.trim().split(/\s+/); if(parts.length<2) continue;
+    const lv=parseInt(parts[0]); if(isNaN(lv)) continue;
+    const tag=parts[1], val=parts.slice(2).join(' ');
+    if(lv===0){
+      bCtx=dCtx=false;
+      if(parts.length>=3&&parts[2]==='INDI'){ cur=tag.replace(/@/g,''); ct='I'; inds[cur]={id:cur,fn:'?',ln:'?',birth:null,death:null,gender:'X',place:'',pids:[],sids:[],cids:[],note:'',photo:''}; }
+      else if(parts.length>=3&&parts[2]==='FAM'){ cur=tag.replace(/@/g,''); ct='F'; fams[cur]={husb:null,wife:null,chil:[]}; }
+      else { cur=null; ct=null; }
+    } else if(ct==='I'&&inds[cur]){
+      const ind=inds[cur];
+      if(tag==='NAME'){ const n=val.replace(/\//g,' ').replace(/\s+/g,' ').trim().split(' '); ind.fn=n[0]||'?'; ind.ln=n.slice(1).join(' ')||'?'; }
+      else if(tag==='SEX') ind.gender=val==='M'?'M':val==='F'?'F':'X';
+      else if(tag==='BIRT'){ bCtx=true; dCtx=false; }
+      else if(tag==='DEAT'){ dCtx=true; bCtx=false; }
+      else if(tag==='MARR'||tag==='EVEN'){ bCtx=false; dCtx=false; }
+      else if(tag==='DATE'){ const yr=parseInt(val.match(/\d{4}/)?.[0]); if(!isNaN(yr)){ if(bCtx) ind.birth=yr; else if(dCtx) ind.death=yr; } }
+      else if(tag==='PLAC'&&bCtx&&!ind.place) ind.place=val;
+      else if(tag==='NOTE'||tag==='TEXT') ind.note=(ind.note?ind.note+'\n':'')+val;
+    } else if(ct==='F'&&fams[cur]){
+      if(tag==='HUSB') fams[cur].husb=val.replace(/@/g,'');
+      else if(tag==='WIFE') fams[cur].wife=val.replace(/@/g,'');
+      else if(tag==='CHIL') fams[cur].chil.push(val.replace(/@/g,''));
+    }
+  }
+  Object.values(fams).forEach(({husb,wife,chil})=>{
+    if(husb&&wife){
+      if(inds[husb]&&!inds[husb].sids.includes(wife)) inds[husb].sids.push(wife);
+      if(inds[wife]&&!inds[wife].sids.includes(husb)) inds[wife].sids.push(husb);
+    }
+    chil.forEach(cid=>{
+      if(husb&&inds[husb]&&!inds[husb].cids.includes(cid)) inds[husb].cids.push(cid);
+      if(wife&&inds[wife]&&!inds[wife].cids.includes(cid)) inds[wife].cids.push(cid);
+      if(inds[cid]){
+        if(husb&&!inds[cid].pids.includes(husb)) inds[cid].pids.push(husb);
+        if(wife&&!inds[cid].pids.includes(wife)) inds[cid].pids.push(wife);
+      }
+    });
+  });
+  people=Object.values(inds); selId=null; tx={x:0,y:0,scale:0.9};
+  document.getElementById('info-panel').classList.remove('visible');
+  renderTree();
+  setTimeout(resetView,80);
+  saveData();
+  toast(`Importováno ${people.length} osob`);
+}
+
+// ═══════════════════════════════
+//  EXPORT
+// ═══════════════════════════════
+function showExport(){ document.getElementById('export-modal').classList.add('visible'); }
+function closeExport(){ document.getElementById('export-modal').classList.remove('visible'); }
+
+function download(name, content, type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportJSON(){
+  // strip photos from JSON to keep it small, or include them
+  const data = JSON.stringify(people, null, 2);
+  download('rodinna-strom.json', data, 'application/json');
+  toast('JSON exportován');
+}
+
+function exportCSV(){
+  const header='ID,Jméno,Příjmení,Pohlaví,Rok_narození,Rok_úmrtí,Místo,Rodiče,Partneři,Děti,Poznámka';
+  const bi=byId();
+  const rows=people.map(p=>[
+    p.id, p.fn, p.ln, p.gender,
+    p.birth||'', p.death||'', p.place||'',
+    p.pids.map(x=>bi[x]?`${bi[x].fn} ${bi[x].ln}`:'?').join('; '),
+    p.sids.map(x=>bi[x]?`${bi[x].fn} ${bi[x].ln}`:'?').join('; '),
+    p.cids.map(x=>bi[x]?`${bi[x].fn} ${bi[x].ln}`:'?').join('; '),
+    (p.note||'').replace(/"/g,'""')
+  ].map(v=>`"${v}"`).join(','));
+  download('rodinna-strom.csv', [header,...rows].join('\n'), 'text/csv;charset=utf-8');
+  toast('CSV exportováno');
+}
+
+function exportGEDCOM(){
+  const lines=['0 HEAD','1 SOUR RodinnýStrom','1 GEDC','2 VERS 5.5.1','1 CHAR UTF-8','1 LANG Czech'];
+  people.forEach((p,i)=>{
+    lines.push(`0 @I${i+1}@ INDI`);
+    lines.push(`1 NAME ${p.fn} /${p.ln}/`);
+    if(p.gender!=='X') lines.push(`1 SEX ${p.gender}`);
+    if(p.birth){ lines.push('1 BIRT'); lines.push(`2 DATE ${p.birth}`); }
+    if(p.death){ lines.push('1 DEAT'); lines.push(`2 DATE ${p.death}`); }
+    if(p.place) lines.push(`2 PLAC ${p.place}`);
+    if(p.note) lines.push(`1 NOTE ${p.note.replace(/\n/g,' ')}`);
+  });
+  // Families — group couples
+  const done=new Set();
+  people.forEach((p,i)=>{
+    p.sids.forEach(sid=>{ if(done.has(`${p.id}-${sid}`)||done.has(`${sid}-${p.id}`)) return; done.add(`${p.id}-${sid}`);
+      const si=people.findIndex(x=>x.id===sid)+1;
+      const bi=people.findIndex(x=>x.id===p.id)+1;
+      const fid=`F${done.size}`;
+      lines.push(`0 @${fid}@ FAM`);
+      if(p.gender==='M'||p.gender==='X'){ lines.push(`1 HUSB @I${bi}@`); lines.push(`1 WIFE @I${si}@`); }
+      else { lines.push(`1 HUSB @I${si}@`); lines.push(`1 WIFE @I${bi}@`); }
+      p.cids.forEach(cid=>{ const ci=people.findIndex(x=>x.id===cid)+1; if(ci) lines.push(`1 CHIL @I${ci}@`); });
+    });
+  });
+  lines.push('0 TRLR');
+  download('rodinna-strom.ged', lines.join('\r\n'), 'text/plain;charset=utf-8');
+  toast('GEDCOM exportován');
+}
+
+function printTree(){
+  window.print();
+}
+
+// ═══════════════════════════════
+//  SHARE
+// ═══════════════════════════════
+function showShare(){
+  // Encode people (without photo data to keep URL small)
+  const slim = people.map(p=>({...p, photo:''}));
+  const json = JSON.stringify(slim);
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  const url = `${location.href.split('#')[0]}#data=${b64}`;
+  document.getElementById('share-url').value = url;
+  document.getElementById('share-modal').classList.add('visible');
+}
+function closeShare(){ document.getElementById('share-modal').classList.remove('visible'); }
+function copyShareUrl(){
+  const ta=document.getElementById('share-url');
+  ta.select(); document.execCommand('copy');
+  const badge=document.getElementById('copy-badge');
+  badge.classList.add('show');
+  setTimeout(()=>badge.classList.remove('show'),2200);
+}
+
+// ═══════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════
+const LS_KEY    = 'rodinna-strom-data';
+const LS_THEME  = 'rodinna-strom-theme';
+const LS_HA_URL = 'rodinna-strom-ha-url';
+const LS_HA_TOK = 'rodinna-strom-ha-token';
+const HA_ENTITY = 'sensor.family_tree';
+
+// ── localStorage fallback ──
+function saveLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(people)); } catch(e) {}
+}
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (Array.isArray(d) && d.length) { people = d; return true; }
+  } catch(e) {}
+  return false;
+}
+
+// ── HA config ──
+function getHAConfig() {
+  const url   = localStorage.getItem(LS_HA_URL);
+  const token = localStorage.getItem(LS_HA_TOK);
+  if (!url || !token) return null;
+  return { url: url.replace(/\/$/, ''), token };
+}
+
+// ── Save to HA (sensor attribute) ──
+async function saveToHA() {
+  const cfg = getHAConfig();
+  if (!cfg) { saveLocal(); return; }
+  try {
+    const resp = await fetch(`${cfg.url}/api/states/${HA_ENTITY}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        state: `${people.length} osob`,
+        attributes: { data: JSON.stringify(people), updated: new Date().toISOString(), friendly_name: 'Rodinný strom' }
+      })
+    });
+    if (resp.ok) {
+      saveLocal();
+      updateHAStatusBtn(true);
+    } else {
+      console.warn('HA save failed:', resp.status);
+      saveLocal();
+      updateHAStatusBtn(false);
+    }
+  } catch(e) {
+    console.warn('HA save error:', e);
+    saveLocal();
+    updateHAStatusBtn(false);
+  }
+}
+
+// ── Load from HA ──
+async function loadFromHA() {
+  const cfg = getHAConfig();
+  if (!cfg) return false;
+  try {
+    const resp = await fetch(`${cfg.url}/api/states/${HA_ENTITY}`, {
+      headers: { 'Authorization': `Bearer ${cfg.token}` }
+    });
+    if (!resp.ok) { updateHAStatusBtn(false); return false; }
+    const json = await resp.json();
+    const raw = json?.attributes?.data;
+    if (!raw) { updateHAStatusBtn(true); return false; }
+    const loaded = JSON.parse(raw);
+    if (Array.isArray(loaded) && loaded.length) {
+      people = loaded;
+      saveLocal();
+      updateHAStatusBtn(true);
+      return true;
+    }
+  } catch(e) { console.warn('HA load error:', e); updateHAStatusBtn(false); }
+  return false;
+}
+
+// ── saveData — called everywhere after a change ──
+function saveData() { saveToHA(); }
+
+function clearStorage() {
+  if (!confirm('Opravdu smazat všechna data (lokální i HA) a vrátit ukázková data?')) return;
+  localStorage.removeItem(LS_KEY);
+  const cfg = getHAConfig();
+  if (cfg) {
+    fetch(`${cfg.url}/api/states/${HA_ENTITY}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: '0 osob', attributes: { data: '[]' } })
+    }).catch(()=>{});
+  }
+  location.reload();
+}
+
+// ── HA status button indicator ──
+function updateHAStatusBtn(ok) {
+  const btn = document.getElementById('ha-status-btn');
+  if (!btn) return;
+  btn.textContent = ok ? '🟢' : '🔴';
+  btn.title = ok ? 'HA připojeno – klikni pro nastavení' : 'HA odpojeno – klikni pro nastavení';
+}
+
+// ── Settings modal ──
+function showSettings() {
+  const cfg = getHAConfig();
+  document.getElementById('s-url').value   = cfg?.url   || '';
+  document.getElementById('s-token').value = cfg?.token || '';
+  document.getElementById('s-status').textContent = '';
+  document.getElementById('settings-modal').classList.add('visible');
+}
+function closeSettings() { document.getElementById('settings-modal').classList.remove('visible'); }
+
+function saveSettings() {
+  const url   = document.getElementById('s-url').value.trim();
+  const token = document.getElementById('s-token').value.trim();
+  if (!url || !token) { toast('Vyplň URL i token'); return; }
+  localStorage.setItem(LS_HA_URL,   url);
+  localStorage.setItem(LS_HA_TOK, token);
+  closeSettings();
+  toast('Nastavení uloženo – synchronizuji…');
+  saveData();
+}
+
+async function testHA() {
+  const url   = document.getElementById('s-url').value.trim();
+  const token = document.getElementById('s-token').value.trim();
+  const st    = document.getElementById('s-status');
+  if (!url || !token) { st.textContent = '⚠️ Vyplň URL i token'; st.style.color='var(--coral)'; return; }
+  st.textContent = '⏳ Testuji spojení…'; st.style.color = 'var(--text3)';
+  try {
+    const resp = await fetch(`${url.replace(/\/$/,'')}/api/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (resp.ok) {
+      st.textContent = '✅ Spojení funguje!'; st.style.color = 'var(--teal)';
+    } else {
+      st.textContent = `❌ Chyba ${resp.status} – zkontroluj token`; st.style.color = 'var(--coral)';
+    }
+  } catch(e) {
+    st.textContent = '❌ Nedostupné – zkontroluj URL a síť'; st.style.color = 'var(--coral)';
+  }
+}
+
+// ── URL hash import ──
+function loadFromHash(){
+  const hash=location.hash;
+  if(!hash.startsWith('#data=')) return false;
+  try {
+    const b64=hash.slice(6);
+    const json=decodeURIComponent(escape(atob(b64)));
+    const loaded=JSON.parse(json);
+    if(Array.isArray(loaded)&&loaded.length){ people=loaded; saveData(); toast(`Načteno ${loaded.length} osob z odkazu`); return true; }
+  } catch(e){ console.warn('Hash parse error',e); }
+  return false;
+}
+
+// ═══════════════════════════════
+//  TOAST
+// ═══════════════════════════════
+let toastTimer;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2800); }
+
+// ═══════════════════════════════
+//  INIT
+// ═══════════════════════════════
+window.addEventListener('load', async () => {
+  // Restore theme
+  const savedTheme = localStorage.getItem(LS_THEME);
+  if (savedTheme) {
+    document.documentElement.dataset.theme = savedTheme;
+    document.getElementById('dark-btn').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+  }
+
+  // Init HA status button
+  const cfg = getHAConfig();
+  document.getElementById('ha-status-btn').textContent = cfg ? '⚪' : '⚙️';
+  document.getElementById('ha-status-btn').title = cfg ? 'HA nakonfigurováno' : 'Klikni pro nastavení HA';
+
+  const svg = document.getElementById('tree-svg');
+  tx = { x:(svg.clientWidth||900)/2, y:(svg.clientHeight||600)/3.5, scale:0.88 };
+
+  // Priority: URL hash > HA server > localStorage > sample data
+  if (!loadFromHash()) {
+    const fromHA = await loadFromHA();
+    if (!fromHA) {
+      if (loadLocal()) {
+        toast(`Načteno ${people.length} osob z lokální paměti`);
+      }
+      // else: ukázková data zůstávají
+    } else {
+      toast(`Načteno ${people.length} osob z Home Assistantu`);
+    }
+  }
+
+  renderTree();
+});
+</script>
+</body>
+</html>

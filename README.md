@@ -1,7 +1,7 @@
 # 🌳 Rodinný strom pro Home Assistant
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-panel-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
-[![Verze](https://img.shields.io/badge/verze-2.0.0-brightgreen)](https://github.com/)
+[![Verze](https://img.shields.io/badge/verze-3.0.0-brightgreen)](https://github.com/)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 [![Jazyk](https://img.shields.io/badge/jazyk-čeština-red)](README.md)
 [![HTML](https://img.shields.io/badge/technologie-HTML%20%2F%20JS%20%2F%20SVG-orange)](family-tree-v2.html)
@@ -159,7 +159,7 @@ Klikni na **📤 Export** a vyber formát:
 
 ```
 rodinna-strom-ha/
-├── family-tree-v2.html    # Celá aplikace (jeden soubor)
+├── family-tree-v3.html    # Celá aplikace (jeden soubor)
 ├── README.md              # Tato dokumentace
 ├── LICENSE                # MIT licence
 └── examples/
@@ -216,7 +216,36 @@ Aplikace je záměrně navržena jako **jeden HTML soubor bez závislostí**:
 
 ---
 
-## 🤝 Přispívání
+## 📝 Changelog
+
+### v3.0.0
+- Celé datum narození/úmrtí (den.měsíc.rok místo jen roku)
+- Příjmení za svobodna pro ženy (uloženo, zobrazeno v detailu)
+- Ukládání dat na HA server přes REST API (`sensor.family_tree`)
+- Nastavení HA připojení přes ⚙️ přímo v aplikaci
+- Test spojení s HA
+- Oprava cache — `no-cache` hlavičky
+- localStorage jako záloha při výpadku HA
+
+### v2.0.0
+- Vyhledávání osob
+- Editace a mazání osob
+- Fotografie / avatary
+- Export JSON, GEDCOM, CSV, tisk
+- Sdílení přes URL hash
+- Poznámky a dokumenty
+- Tmavý režim
+- Časová osa (Timeline)
+
+### v1.0.0
+- Základní interaktivní strom
+- Import GEDCOM
+- Přidávání osob
+- Barevné generace
+
+---
+
+
 
 Příspěvky jsou vítány! Postup:
 
