@@ -295,6 +295,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <div class="form-group"><label>Místo narození</label><input type="text" id="f-place" placeholder="Praha" autocomplete="off"></div>
     <div class="form-group"><label>Otec</label><select id="f-father"><option value="">— nevybráno —</option></select></div>
     <div class="form-group"><label>Matka</label><select id="f-mother"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group"><label>Sourozenec / Sourozenka</label><select id="f-sibling"><option value="">— nevybráno —</option></select></div>
     <div class="form-group"><label>Partner / partnerka</label><select id="f-spouse"><option value="">— nevybráno —</option></select></div>
     <div class="form-group"><label>Poznámky a dokumenty</label><textarea id="f-note" placeholder="Životopis, povolání, zajímavosti, odkazy na dokumenty…"></textarea></div>
     <div class="form-actions">
@@ -469,9 +470,95 @@ function computeLayout(ps) {
     ps.forEach(p=>{ if(depth[p.id]===undefined){ for(const s of p.sids){ if(depth[s]!==undefined){ depth[p.id]=depth[s]; changed=true; break; } } } });
   }
   ps.forEach(p=>{ if(depth[p.id]===undefined) depth[p.id]=0; });
+
+  // Force spouses to same depth — multiple passes until stable
+  // Person with parents keeps their depth, person without parents adapts
+  for(let pass=0; pass<10; pass++) {
+    let anyChange = false;
+    ps.forEach(p=>{
+      p.sids.forEach(sid=>{
+        if(depth[sid]===undefined || depth[p.id]===undefined) return;
+        if(depth[p.id] === depth[sid]) return;
+        const pHasParents = p.pids.some(pid=>ps.find(x=>x.id===pid));
+        const sHasParents = bi[sid]?.pids.some(pid=>ps.find(x=>x.id===pid));
+        let targetD;
+        if(pHasParents && !sHasParents)       targetD = depth[p.id];
+        else if(!pHasParents && sHasParents)  targetD = depth[sid];
+        else                                   targetD = Math.max(depth[p.id], depth[sid]);
+        if(depth[p.id] !== targetD){ depth[p.id]=targetD; anyChange=true; }
+        if(depth[sid] !== targetD){ depth[sid]=targetD; anyChange=true; }
+      });
+    });
+    if(!anyChange) break;
+  }
+  // After spouse alignment, re-propagate depths to children
+  // Children must always be deeper than their parents
+  changed=true;
+  while(changed) {
+    changed=false;
+    ps.forEach(p=>{
+      (bi[p.id]?.cids||[]).forEach(cid=>{
+        const minChildD = depth[p.id] + 1;
+        if(depth[cid] === undefined || depth[cid] < minChildD){
+          depth[cid] = minChildD;
+          changed = true;
+        }
+      });
+    });
+  }
   const bd={};
   ps.forEach(p=>{ const d=depth[p.id]; if(!bd[d]) bd[d]=[]; if(!bd[d].includes(p.id)) bd[d].push(p.id); });
-  Object.values(bd).forEach(ids=>ids.sort((a,b)=>{ const pa=bi[a],pb=bi[b]; if(!pa||!pb) return 0; if(pa.sids.includes(b)) return -1; if(pb.sids.includes(a)) return 1; if(pa.pids.some(x=>pb.pids.includes(x))) return -1; return 0; }));
+
+  // Group each depth level into couple-units then sort units by shared children
+  Object.keys(bd).forEach(d=>{
+    const ids = bd[d];
+    const used = new Set();
+    const units = []; // each unit = [id] or [id, spouseId]
+
+    ids.forEach(id=>{
+      if(used.has(id)) return;
+      const p = bi[id];
+      const spouseId = p?.sids.find(s => ids.includes(s) && !used.has(s));
+      if(spouseId) {
+        // put male first in couple
+        const sp = bi[spouseId];
+        const male = (p?.gender==='M') ? id : (sp?.gender==='M' ? spouseId : id);
+        const female = male===id ? spouseId : id;
+        units.push([male, female]);
+        used.add(id); used.add(spouseId);
+      } else {
+        units.push([id]);
+        used.add(id);
+      }
+    });
+
+    // helper: all children of a unit (couple or single)
+    const childrenOf = unit => {
+      const cids = new Set();
+      unit.forEach(id=>{ (bi[id]?.cids||[]).forEach(c=>cids.add(c)); });
+      return [...cids];
+    };
+
+    // Sort units: couples with children first, then by first child birth year
+    // Couples without children go to the end, but ALWAYS stay together
+    units.sort((a, b) => {
+      const acids = childrenOf(a);
+      const bcids = childrenOf(b);
+      const aHasKids = acids.length > 0;
+      const bHasKids = bcids.length > 0;
+      // couples with kids before those without
+      if(aHasKids && !bHasKids) return -1;
+      if(!aHasKids && bHasKids) return 1;
+      if(!aHasKids && !bHasKids) return 0;
+      // both have kids — sort by earliest child birth year
+      const ayr = Math.min(...acids.map(c=>yearFrom(bi[c]?.birth)||9999));
+      const byr = Math.min(...bcids.map(c=>yearFrom(bi[c]?.birth)||9999));
+      return ayr - byr;
+    });
+
+    // Flatten units back to ordered id list
+    bd[d] = units.flat();
+  });
   const pos={};
   Object.entries(bd).sort(([a],[b])=>+a-+b).forEach(([d,ids])=>{ const total=ids.length*NW+(ids.length-1)*HG, sx=-total/2+NW/2; ids.forEach((id,i)=>{ pos[id]={x:sx+i*(NW+HG),y:+d*(NH+VG),d:+d}; }); });
   return pos;
@@ -503,12 +590,15 @@ function renderTree() {
     p.cids.forEach(cid=>{
       const cp=layout[cid]; if(!cp) return;
       const ch=bi[cid];
-      const coId=ch?.pids.find(pid=>pid!==p.id&&layout[pid]);
-      const co=coId?layout[coId]:null;
-      const fx=co?(pp.x+co.x)/2:pp.x;
-      const fy=pp.y+NH/2+4, ty=cp.y-NH/2-4, my=(fy+ty)/2;
       const key=[p.id,cid].sort().join('|');
       if(drawn.has(key)) return; drawn.add(key);
+
+      // find co-parent: prefer spouse of p who is also parent of child
+      const coId = p.sids.find(sid => ch?.pids.includes(sid) && layout[sid])
+                || ch?.pids.find(pid => pid!==p.id && layout[pid]);
+      const co = coId ? layout[coId] : null;
+      const fx = co ? (pp.x + co.x) / 2 : pp.x;
+      const fy=pp.y+NH/2+4, ty=cp.y-NH/2-4, my=(fy+ty)/2;
       const path=S('path',{d:`M ${fx} ${fy} C ${fx} ${my} ${cp.x} ${my} ${cp.x} ${ty}`,fill:'none',stroke:col.m,'stroke-width':'2',opacity:'0.4','stroke-linecap':'round'});
       cl.appendChild(path);
     });
@@ -778,7 +868,7 @@ function editSelected(){
   document.getElementById('add-modal').classList.add('visible');
 }
 function populateSelects(editing){
-  ['f-father','f-mother','f-spouse'].forEach(sid=>{
+  ['f-father','f-mother','f-sibling','f-spouse'].forEach(sid=>{
     const sel=document.getElementById(sid);
     sel.innerHTML='<option value="">— nevybráno —</option>';
     people.filter(p=>!editing||p.id!==editing.id).forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=`${p.fn} ${p.ln}${p.birth?' ('+yearFrom(p.birth)+')':''}`; sel.appendChild(o); });
@@ -790,11 +880,14 @@ function populateSelects(editing){
     if(fId) document.getElementById('f-father').value=fId;
     if(mId) document.getElementById('f-mother').value=mId;
     if(editing.sids[0]) document.getElementById('f-spouse').value=editing.sids[0];
+    // find existing sibling (shares same parents, not via pids directly)
+    const sibId = people.find(q=>q.id!==editing.id && q.pids.some(pid=>editing.pids.includes(pid)))?.id || '';
+    if(sibId) document.getElementById('f-sibling').value=sibId;
   }
 }
 function handlePhotoUpload(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ photoData=ev.target.result; const prev=document.getElementById('f-photo-preview'); prev.innerHTML=`<img src="${photoData}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }; r.readAsDataURL(f); }
 function toggleMaiden(g){ document.getElementById('maiden-group').style.display=(g==='F')?'':'none'; }
-function closeModal(){ document.getElementById('add-modal').classList.remove('visible'); ['f-fn','f-ln','f-maiden','f-birth','f-death','f-place','f-note'].forEach(id=>{ document.getElementById(id).value=''; }); ['f-gender','f-father','f-mother','f-spouse'].forEach(id=>{ document.getElementById(id).selectedIndex=0; }); toggleMaiden('M'); photoData=''; document.getElementById('f-photo-preview').innerHTML='📷'; }
+function closeModal(){ document.getElementById('add-modal').classList.remove('visible'); ['f-fn','f-ln','f-maiden','f-birth','f-death','f-place','f-note'].forEach(id=>{ document.getElementById(id).value=''; }); ['f-gender','f-father','f-mother','f-sibling','f-spouse'].forEach(id=>{ document.getElementById(id).selectedIndex=0; }); toggleMaiden('M'); photoData=''; document.getElementById('f-photo-preview').innerHTML='📷'; }
 function savePerson(){
   const fn=document.getElementById('f-fn').value.trim();
   const ln=document.getElementById('f-ln').value.trim();
@@ -808,8 +901,16 @@ function savePerson(){
   const note=document.getElementById('f-note').value.trim();
   const fId=document.getElementById('f-father').value;
   const mId=document.getElementById('f-mother').value;
+  const sibId=document.getElementById('f-sibling').value;
   const spId=document.getElementById('f-spouse').value;
-  const pids=[fId,mId].filter(Boolean);
+
+  // if sibling selected and no parents set, inherit sibling's parents
+  let resolvedPids = [fId,mId].filter(Boolean);
+  if(sibId && resolvedPids.length===0) {
+    const sib = people.find(x=>x.id===sibId);
+    if(sib) resolvedPids = [...sib.pids];
+  }
+  const pids = resolvedPids;
   const sids=spId?[spId]:[];
 
   if(eid) {
@@ -829,6 +930,11 @@ function savePerson(){
   const eid2 = eid || people[people.length-1].id;
   if(fId){ const f=people.find(p=>p.id===fId); if(f&&!f.cids.includes(eid2)) f.cids.push(eid2); }
   if(mId){ const m=people.find(p=>p.id===mId); if(m&&!m.cids.includes(eid2)) m.cids.push(eid2); }
+  // if sibling used to inherit parents, also update those parents' cids
+  if(sibId && [fId,mId].filter(Boolean).length===0) {
+    const sib = people.find(x=>x.id===sibId);
+    if(sib) sib.pids.forEach(pid=>{ const par=people.find(x=>x.id===pid); if(par&&!par.cids.includes(eid2)) par.cids.push(eid2); });
+  }
   if(spId){ const s=people.find(p=>p.id===spId); if(s&&!s.sids.includes(eid2)) s.sids.push(eid2); }
   closeModal(); saveData(); renderTree();
 }
