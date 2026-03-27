@@ -220,7 +220,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
   <div class="hsearch">
     <span class="hsearch-icon">🔍</span>
-    <input type="text" id="search-input" placeholder="Hledat osobu…" oninput="doSearch()" onblur="setTimeout(()=>closeSearch(),200)">
+    <input type="text" id="search-input" placeholder="Hledat osobu…" oninput="doSearch()" onblur="closeSearch()">
     <div class="search-results" id="search-results"></div>
   </div>
 
@@ -415,6 +415,11 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
 <script>
 // ═══════════════════════════════
+//  UTILS
+// ═══════════════════════════════
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+// ═══════════════════════════════
 //  GENERATION COLORS (for card accent)
 // ═══════════════════════════════
 const GC = [
@@ -439,6 +444,7 @@ const FC = [
 // coupleColor[parentId] = color for their children's lines
 let coupleColors = {};
 let personColors = {}; // id → color
+let coupleLabelMap = {};
 
 function computeFamilyColors(ps) {
   personColors = {};
@@ -486,7 +492,7 @@ function updateLegend() {
   ).join('');
 }
 
-function lineColor(pid) { return 'var(--border2)'; }
+function lineColor() { return 'var(--border2)'; }
 function cardColor(p, bi) { return personColors[p.id] || FC[0]; }
 function familyColor(id) { return personColors[id] || FC[0]; }
 
@@ -668,7 +674,7 @@ function renderTree() {
   const drawn=new Set();
   people.forEach(p=>{
     const pp=layout[p.id]; if(!pp) return;
-    const lCol = lineColor(p.id);
+    const lCol = lineColor();
     p.cids.forEach(cid=>{
       const cp=layout[cid]; if(!cp) return;
       const ch=bi[cid];
@@ -699,13 +705,13 @@ function renderTree() {
     const pos=layout[p.id]; if(!pos) return;
     const col=gc(pos.d), isSel=p.id===selId, dead=!!p.death;
     const fCol = cardColor(p, bi);
-    const g=S('g',{transform:`translate(${pos.x-NW/2},${pos.y-NH/2})`,style:'cursor:pointer'});
+    const g=S('g',{id:`node-${p.id}`,transform:`translate(${pos.x-NW/2},${pos.y-NH/2})`,style:'cursor:pointer'});
     g.addEventListener('click',()=>selectPerson(p.id));
 
     // shadow
     const sh=S('rect',{x:'3',y:'5',width:String(NW),height:String(NH),rx:'14',fill:fCol,opacity:dead?'0.04':'0.10'});
     // card
-    const card=S('rect',{width:String(NW),height:String(NH),rx:'14',fill:isSel?col.l:(dead?'var(--surface2)':'var(--surface)'),stroke:isSel?fCol:(dead?'var(--border)':'var(--border2)'),'stroke-width':isSel?'2.5':'1'});
+    const card=S('rect',{class:'node-card',width:String(NW),height:String(NH),rx:'14',fill:isSel?col.l:(dead?'var(--surface2)':'var(--surface)'),stroke:isSel?fCol:(dead?'var(--border)':'var(--border2)'),'stroke-width':isSel?'2.5':'1'});
     // color bar
     const bar=S('rect',{width:'9',height:String(NH),rx:'14',fill:fCol,opacity:dead?'0.38':'1'});
     const barMask=S('rect',{x:'4',width:'9',height:String(NH),fill:isSel?col.l:(dead?'var(--surface2)':'var(--surface)')});
@@ -739,7 +745,7 @@ function renderTree() {
 
     if(p.note&&p.note.trim()) g.appendChild(ST('📝',{x:String(NW-9),y:String(NH-8),'text-anchor':'end','font-size':'10',opacity:'0.6'}));
 
-    if(isSel) { const ring=S('rect',{x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:fCol,'stroke-width':'2','stroke-dasharray':'6 3',opacity:'0.5'}); g.appendChild(ring); }
+    if(isSel) { const ring=S('rect',{class:'node-ring',x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:fCol,'stroke-width':'2','stroke-dasharray':'6 3',opacity:'0.5'}); g.appendChild(ring); }
 
     nl.appendChild(g);
   });
@@ -805,7 +811,6 @@ function renderTimeline() {
 
   sorted.forEach((p,i)=>{
     if(i>=visCount) return;
-    layout[p.id] = layout[p.id] || {d:0};
     const col=gc(layout[p.id]?.d||0);
     const endY=yearFrom(p.death)||new Date().getFullYear();
     const x1=yearToX(yearFrom(p.birth)), x2=yearToX(endY);
@@ -860,6 +865,46 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); const d=-e.deltaY*0.001
 function zoom(d){ const svg=document.getElementById('tree-svg'); const ns=Math.max(0.12,Math.min(4,tx.scale+d)); tx.x=(svg.clientWidth||800)/2-((svg.clientWidth||800)/2-tx.x)*(ns/tx.scale); tx.y=(svg.clientHeight||600)/2-((svg.clientHeight||600)/2-tx.y)*(ns/tx.scale); tx.scale=ns; applyTx(); }
 function resetView(){ const svg=document.getElementById('tree-svg'); tx={x:(svg.clientWidth||800)/2,y:(svg.clientHeight||600)/3.5,scale:0.9}; applyTx(); }
 
+// Touch support
+let lastTouchDist=null;
+function getTouchDist(t){ const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
+canvas.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){ dragging=true; dragLast={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastTouchDist=null; }
+  else if(e.touches.length===2){ dragging=false; lastTouchDist=getTouchDist(e.touches); }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(e.touches.length===1&&dragging&&dragLast){
+    tx.x+=e.touches[0].clientX-dragLast.x; tx.y+=e.touches[0].clientY-dragLast.y;
+    dragLast={x:e.touches[0].clientX,y:e.touches[0].clientY}; applyTx();
+  } else if(e.touches.length===2&&lastTouchDist){
+    const dist=getTouchDist(e.touches);
+    const r=canvas.getBoundingClientRect();
+    const mx=(e.touches[0].clientX+e.touches[1].clientX)/2-r.left;
+    const my=(e.touches[0].clientY+e.touches[1].clientY)/2-r.top;
+    const ns=Math.max(0.12,Math.min(4,tx.scale*(dist/lastTouchDist)));
+    tx.x=mx-(mx-tx.x)*(ns/tx.scale); tx.y=my-(my-tx.y)*(ns/tx.scale);
+    tx.scale=ns; lastTouchDist=dist; applyTx();
+  }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchend',()=>{ dragging=false; dragLast=null; lastTouchDist=null; });
+
+// ═══════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ═══════════════════════════════
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') {
+    if(document.getElementById('add-modal').classList.contains('visible')){ closeModal(); return; }
+    ['import-modal','export-modal','share-modal','settings-modal'].forEach(id=>document.getElementById(id).classList.remove('visible'));
+    if(document.getElementById('info-panel').classList.contains('visible')) closeInfo();
+  }
+  if(e.key === 'Enter' && document.getElementById('add-modal').classList.contains('visible')) {
+    const tag = document.activeElement.tagName;
+    if(tag !== 'TEXTAREA' && tag !== 'SELECT' && tag !== 'BUTTON') { e.preventDefault(); savePerson(); }
+  }
+});
+
 // ═══════════════════════════════
 //  DARK MODE
 // ═══════════════════════════════
@@ -868,7 +913,52 @@ function toggleDark(){ const html=document.documentElement; const dark=html.data
 // ═══════════════════════════════
 //  SELECT / INFO PANEL
 // ═══════════════════════════════
-function selectPerson(id){ selId=id; renderTree(); showInfo(id); }
+function selectPerson(id){
+  const prevId=selId; selId=id;
+  updateNodeSelection(prevId, id);
+  showInfo(id);
+  focusPerson(id);
+}
+
+// Update SVG node visuals for selection change — no full re-render needed
+function updateNodeSelection(prevId, newId) {
+  if(prevId) {
+    const g=document.getElementById('node-'+prevId);
+    if(g) {
+      const p=people.find(x=>x.id===prevId);
+      const dead=p&&!!p.death;
+      const card=g.querySelector('.node-card');
+      if(card){ card.setAttribute('fill',dead?'var(--surface2)':'var(--surface)'); card.setAttribute('stroke',dead?'var(--border)':'var(--border2)'); card.setAttribute('stroke-width','1'); }
+      const ring=g.querySelector('.node-ring'); if(ring) ring.remove();
+    }
+  }
+  if(newId) {
+    const g=document.getElementById('node-'+newId);
+    if(g) {
+      const p=people.find(x=>x.id===newId); if(!p) return;
+      const pos=layout[newId], col=pos?gc(pos.d):GC[2];
+      const fCol=personColors[newId]||FC[0];
+      const card=g.querySelector('.node-card');
+      if(card){ card.setAttribute('fill',col.l); card.setAttribute('stroke',fCol); card.setAttribute('stroke-width','2.5'); }
+      if(!g.querySelector('.node-ring')){ const ring=S('rect',{class:'node-ring',x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:fCol,'stroke-width':'2','stroke-dasharray':'6 3',opacity:'0.5'}); g.appendChild(ring); }
+    }
+  }
+}
+
+// Smooth pan to center selected person
+function focusPerson(id) {
+  const pos=layout[id]; if(!pos) return;
+  const svg=document.getElementById('tree-svg');
+  const W=svg.clientWidth||900, H=svg.clientHeight||600;
+  animatePan(W/2 - pos.x*tx.scale, H/2 - pos.y*tx.scale);
+}
+function animatePan(toX, toY) {
+  const sx=tx.x, sy=tx.y, dx=toX-sx, dy=toY-sy;
+  if(Math.abs(dx)<2&&Math.abs(dy)<2) return;
+  const dur=380, t0=performance.now();
+  function step(now){ const t=Math.min((now-t0)/dur,1), e=t<0.5?2*t*t:-1+(4-2*t)*t; tx.x=sx+dx*e; tx.y=sy+dy*e; applyTx(); if(t<1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
 function showInfo(id){
   const p=people.find(x=>x.id===id); if(!p) return;
   const bi=byId(), pos=layout[id], col=pos?gc(pos.d):GC[2];
@@ -896,7 +986,7 @@ function showInfo(id){
 
   document.getElementById('info-panel').classList.add('visible');
 }
-function closeInfo(){ selId=null; document.getElementById('info-panel').classList.remove('visible'); renderTree(); }
+function closeInfo(){ const prev=selId; selId=null; updateNodeSelection(prev,null); document.getElementById('info-panel').classList.remove('visible'); }
 
 // ═══════════════════════════════
 //  SEARCH
@@ -905,10 +995,10 @@ function doSearch(){
   const q=document.getElementById('search-input').value.trim().toLowerCase();
   const box=document.getElementById('search-results');
   if(!q){ box.classList.remove('visible'); return; }
-  const matches=people.filter(p=>`${p.fn} ${p.ln}`.toLowerCase().includes(q)||(p.birth&&String(p.birth).includes(q))||(p.place&&p.place.toLowerCase().includes(q)));
+  const matches=people.filter(p=>`${p.fn} ${p.ln}`.toLowerCase().includes(q)||(p.birth&&String(p.birth).includes(q))||(p.place&&p.place.toLowerCase().includes(q))||(p.note&&p.note.toLowerCase().includes(q)));
   if(!matches.length){ box.innerHTML='<div style="padding:14px;text-align:center;font-size:0.82rem;color:var(--text3)">Žádné výsledky</div>'; box.classList.add('visible'); return; }
   const pos=layout;
-  box.innerHTML=matches.slice(0,8).map(p=>{ const d=pos[p.id]?.d??0; const col=gc(d); return `<div class="sr-item" onclick="pickSearch('${p.id}')"><div class="sr-dot" style="background:${col.m}">${initials(p.fn,p.ln)}</div><div><div class="sr-name">${p.fn} ${p.ln}</div><div class="sr-sub">${lifespan(p)}${p.place?' · '+p.place:''}</div></div></div>`; }).join('');
+  box.innerHTML=matches.slice(0,8).map(p=>{ const d=pos[p.id]?.d??0; const col=gc(d); return `<div class="sr-item" onclick="pickSearch('${esc(p.id)}')"><div class="sr-dot" style="background:${col.m}">${esc(initials(p.fn,p.ln))}</div><div><div class="sr-name">${esc(p.fn)} ${esc(p.ln)}</div><div class="sr-sub">${esc(lifespan(p))}${p.place?' · '+esc(p.place):''}</div></div></div>`; }).join('');
   box.classList.add('visible');
 }
 function pickSearch(id){ document.getElementById('search-input').value=''; document.getElementById('search-results').classList.remove('visible'); selectPerson(id); }
@@ -1129,9 +1219,8 @@ function exportGEDCOM(){
     lines.push(`0 @I${i+1}@ INDI`);
     lines.push(`1 NAME ${p.fn} /${p.ln}/`);
     if(p.gender!=='X') lines.push(`1 SEX ${p.gender}`);
-    if(p.birth){ lines.push('1 BIRT'); lines.push(`2 DATE ${p.birth}`); }
+    if(p.birth){ lines.push('1 BIRT'); lines.push(`2 DATE ${p.birth}`); if(p.place) lines.push(`2 PLAC ${p.place}`); }
     if(p.death){ lines.push('1 DEAT'); lines.push(`2 DATE ${p.death}`); }
-    if(p.place) lines.push(`2 PLAC ${p.place}`);
     if(p.note) lines.push(`1 NOTE ${p.note.replace(/\n/g,' ')}`);
   });
   // Families — group couples
@@ -1163,15 +1252,18 @@ function showShare(){
   // Encode people (without photo data to keep URL small)
   const slim = people.map(p=>({...p, photo:''}));
   const json = JSON.stringify(slim);
-  const b64 = btoa(unescape(encodeURIComponent(json)));
+  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
   const url = `${location.href.split('#')[0]}#data=${b64}`;
   document.getElementById('share-url').value = url;
   document.getElementById('share-modal').classList.add('visible');
 }
 function closeShare(){ document.getElementById('share-modal').classList.remove('visible'); }
 function copyShareUrl(){
-  const ta=document.getElementById('share-url');
-  ta.select(); document.execCommand('copy');
+  const url=document.getElementById('share-url').value;
+  navigator.clipboard.writeText(url).catch(()=>{
+    const ta=document.getElementById('share-url');
+    ta.select(); document.execCommand('copy');
+  });
   const badge=document.getElementById('copy-badge');
   badge.classList.add('show');
   setTimeout(()=>badge.classList.remove('show'),2200);
@@ -1331,7 +1423,8 @@ function loadFromHash(){
   if(!hash.startsWith('#data=')) return false;
   try {
     const b64=hash.slice(6);
-    const json=decodeURIComponent(escape(atob(b64)));
+    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    const json=new TextDecoder().decode(bytes);
     const loaded=JSON.parse(json);
     if(Array.isArray(loaded)&&loaded.length){ people=loaded; saveData(); toast(`Načteno ${loaded.length} osob z odkazu`); return true; }
   } catch(e){ console.warn('Hash parse error',e); }
