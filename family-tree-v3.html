@@ -647,9 +647,33 @@ function computeLayout(ps) {
   let changed=true;
   while(changed) {
     changed=false;
-    ps.forEach(p=>{ if(depth[p.id]===undefined){ for(const s of p.sids){ if(depth[s]!==undefined){ depth[p.id]=depth[s]; changed=true; break; } } } });
+    ps.forEach(p=>{
+      if(depth[p.id]===undefined){
+        for(const s of p.sids){
+          if(depth[s]!==undefined){ depth[p.id]=depth[s]; changed=true; break; }
+        }
+      }
+    });
   }
   ps.forEach(p=>{ if(depth[p.id]===undefined) depth[p.id]=0; });
+
+  // Extra pass: persons without parents but with spouse deeper than 0 → adopt spouse depth
+  changed=true;
+  while(changed){
+    changed=false;
+    ps.forEach(p=>{
+      if(p.pids.some(pid=>bi[pid])) return; // has parents in tree — skip
+      for(const sid of p.sids){
+        if(depth[sid]!==undefined && depth[sid] !== depth[p.id]){
+          const sHasParents = bi[sid]?.pids.some(pid=>bi[pid]);
+          if(sHasParents && depth[sid] > depth[p.id]){
+            depth[p.id] = depth[sid];
+            changed = true;
+          }
+        }
+      }
+    });
+  }
 
   // Force spouses to same depth — multiple passes until stable
   // Person with parents keeps their depth, person without parents adapts
@@ -686,6 +710,27 @@ function computeLayout(ps) {
     });
   }
 
+  // Re-align spouses after children were pushed down (fixes: spouse without parents
+  // was aligned before propagation, then child moved deeper → spouses on different rows)
+  for(let pass=0; pass<10; pass++) {
+    let anyChange = false;
+    ps.forEach(p=>{
+      p.sids.forEach(sid=>{
+        if(depth[sid]===undefined || depth[p.id]===undefined) return;
+        if(depth[p.id] === depth[sid]) return;
+        const pHasParents = p.pids.some(pid=>ps.find(x=>x.id===pid));
+        const sHasParents = bi[sid]?.pids.some(pid=>ps.find(x=>x.id===pid));
+        let targetD;
+        if(pHasParents && !sHasParents)       targetD = depth[p.id];
+        else if(!pHasParents && sHasParents)  targetD = depth[sid];
+        else                                   targetD = Math.max(depth[p.id], depth[sid]);
+        if(depth[p.id] !== targetD){ depth[p.id]=targetD; anyChange=true; }
+        if(depth[sid] !== targetD){ depth[sid]=targetD; anyChange=true; }
+      });
+    });
+    if(!anyChange) break;
+  }
+
   // Then push parents above children (for root persons above other roots)
   changed=true;
   while(changed){
@@ -711,24 +756,29 @@ function computeLayout(ps) {
   Object.keys(bd).forEach(d=>{
     const ids = bd[d];
     const used = new Set();
-    const units = []; // each unit = [id] or [id, spouseId]
+    const units = [];
 
     ids.forEach(id=>{
       if(used.has(id)) return;
       const p = bi[id];
+      // find spouse on same level
       const spouseId = p?.sids.find(s => ids.includes(s) && !used.has(s));
       if(spouseId) {
-        // put male first in couple
         const sp = bi[spouseId];
         const male = (p?.gender==='M') ? id : (sp?.gender==='M' ? spouseId : id);
         const female = male===id ? spouseId : id;
         units.push([male, female]);
         used.add(id); used.add(spouseId);
       } else {
-        units.push([id]);
-        used.add(id);
+        const alreadyGrouped = p?.sids.some(s => used.has(s));
+        if(!alreadyGrouped) {
+          units.push([id]);
+          used.add(id);
+        }
       }
     });
+    // add any remaining
+    ids.forEach(id=>{ if(!used.has(id)){ units.push([id]); used.add(id); } });
 
     // helper: all children of a unit (couple or single)
     const childrenOf = unit => {
@@ -737,24 +787,39 @@ function computeLayout(ps) {
       return [...cids];
     };
 
-    // Sort units: couples with children first, then by first child birth year
-    // Couples without children go to the end, but ALWAYS stay together
     units.sort((a, b) => {
       const acids = childrenOf(a);
       const bcids = childrenOf(b);
       const aHasKids = acids.length > 0;
       const bHasKids = bcids.length > 0;
-      // couples with kids before those without
       if(aHasKids && !bHasKids) return -1;
       if(!aHasKids && bHasKids) return 1;
       if(!aHasKids && !bHasKids) return 0;
-      // both have kids — sort by earliest child birth year
       const ayr = Math.min(...acids.map(c=>yearFrom(bi[c]?.birth)||9999));
       const byr = Math.min(...bcids.map(c=>yearFrom(bi[c]?.birth)||9999));
       return ayr - byr;
     });
 
-    // Flatten units back to ordered id list
+    // After sorting, move each childless unit next to its spouse's unit
+    for(let i=units.length-1; i>=0; i--) {
+      const unit = units[i];
+      if(childrenOf(unit).length > 0) continue; // skip units with children
+      // find if any member has a spouse in another unit
+      for(const id of unit) {
+        const p = bi[id];
+        for(const sid of (p?.sids||[])) {
+          const spouseUnitIdx = units.findIndex((u,idx) => idx!==i && u.includes(sid));
+          if(spouseUnitIdx >= 0) {
+            // move this unit right after the spouse's unit
+            const [removed] = units.splice(i, 1);
+            const newIdx = units.indexOf(units.find(u => u.includes(sid)));
+            units.splice(newIdx+1, 0, removed);
+            break;
+          }
+        }
+      }
+    }
+
     bd[d] = units.flat();
   });
 
@@ -807,12 +872,20 @@ function renderTree() {
       cl.appendChild(path);
     });
     p.sids.forEach(sid=>{
-      if(sid<p.id) return;
       const sp=layout[sid]; if(!sp) return;
-      const mx=(pp.x+sp.x)/2+NW/2, y=(pp.y+sp.y)/2;
-      const l1=S('line',{x1:String(pp.x+NW),y1:String(pp.y+NH/2),x2:String(mx-10),y2:String(y),stroke:'var(--border2)','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.8'});
-      const l2=S('line',{x1:String(mx+10),y1:String(y),x2:String(sp.x),y2:String(sp.y+NH/2),stroke:'var(--border2)','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.8'});
-      const ht=ST('♥',{x:String(mx),y:String(y+5),'text-anchor':'middle','font-size':'13',fill:'var(--text3)',opacity:'0.7'});
+      // deduplicate using sorted key
+      const pairKey = [p.id, sid].sort().join('~');
+      if(drawn.has(pairKey)) return; drawn.add(pairKey);
+      const leftP = pp.x <= sp.x ? pp : sp;
+      const rightP = pp.x <= sp.x ? sp : pp;
+      // pos.x is card center → right edge = pos.x+NW/2, left edge = pos.x-NW/2
+      // pos.y is card center → vertical midpoint = pos.y
+      const x1=leftP.x+NW/2,  y1=leftP.y;
+      const x2=rightP.x-NW/2, y2=rightP.y;
+      const mx=(x1+x2)/2, my=(y1+y2)/2;
+      const l1=S('line',{x1:String(x1),y1:String(y1),x2:String(mx-10),y2:String(my),stroke:'var(--border2)','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.8'});
+      const l2=S('line',{x1:String(mx+10),y1:String(my),x2:String(x2),y2:String(y2),stroke:'var(--border2)','stroke-width':'1.8','stroke-dasharray':'4 3',opacity:'0.8'});
+      const ht=ST('♥',{x:String(mx),y:String(my+5),'text-anchor':'middle','font-size':'13',fill:'var(--text3)',opacity:'0.7'});
       cl.appendChild(l1); cl.appendChild(l2); cl.appendChild(ht);
     });
   });
