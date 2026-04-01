@@ -262,7 +262,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <button class="btn btn-ghost btn-icon" onclick="showSettings()" id="ha-status-btn" title="Nastavení HA">⚙️</button>
     <button class="btn btn-ghost" onclick="showShare()">🔗 Sdílet</button>
     <button class="btn btn-ghost" onclick="showExport()">📤 Export</button>
-    <button class="btn btn-ghost" onclick="showImport()">📂 GEDCOM</button>
+    <button class="btn btn-ghost" onclick="showImport()">📂 Import</button>
     <button class="btn btn-gold" onclick="showAdd()">＋ Přidat</button>
   </div>
   <button class="hamburger" onclick="showMobileMenu()">☰</button>
@@ -274,7 +274,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <div class="mobile-menu-title">Rodinný strom</div>
     <button class="mobile-btn mobile-btn-gold" onclick="showAdd();closeMobileMenu()">＋ Přidat osobu</button>
     <button class="mobile-btn" onclick="switchView(currentView==='tree'?'timeline':'tree', document.querySelector('.vtab'));closeMobileMenu()">📅 Přepnout zobrazení</button>
-    <button class="mobile-btn" onclick="showImport();closeMobileMenu()">📂 Import GEDCOM</button>
+    <button class="mobile-btn" onclick="showImport();closeMobileMenu()">📂 Import dat</button>
     <button class="mobile-btn" onclick="showExport();closeMobileMenu()">📤 Export dat</button>
     <button class="mobile-btn" onclick="showShare();closeMobileMenu()">🔗 Sdílet</button>
     <button class="mobile-btn" onclick="showSettings();closeMobileMenu()">⚙️ Nastavení HA</button>
@@ -393,7 +393,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <div class="form-group"><label>Otec</label><select id="f-father"><option value="">— nevybráno —</option></select></div>
     <div class="form-group"><label>Matka</label><select id="f-mother"><option value="">— nevybráno —</option></select></div>
     <div class="form-group"><label>Sourozenec / Sourozenka</label><select id="f-sibling"><option value="">— nevybráno —</option></select></div>
-    <div class="form-group"><label>Partner / partnerka</label><select id="f-spouse"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group"><label>Partner / partnerka</label><select id="f-spouse" onchange="toggleWedding(this.value)"><option value="">— nevybráno —</option></select></div>
+    <div class="form-group" id="wedding-group" style="display:none"><label>Datum svatby</label><input type="text" id="f-wedding" placeholder="1.6.1975" autocomplete="off"></div>
     <div class="form-group"><label>Poznámky a dokumenty</label><textarea id="f-note" placeholder="Životopis, povolání, zajímavosti, odkazy na dokumenty…"></textarea></div>
     <div class="form-actions">
       <button class="btn btn-outline btn-full" onclick="closeModal()">Zrušit</button>
@@ -405,14 +406,20 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="import-modal" onclick="if(event.target===this)closeImport()">
   <div class="modal">
-    <div class="modal-h">📂 Import GEDCOM</div>
+    <div class="modal-h">📂 Import dat</div>
+    <div class="import-zone" onclick="document.getElementById('json-file').click()" style="margin-bottom:10px">
+      <input type="file" id="json-file" accept=".json" onchange="handleJSON(event)">
+      <div class="import-icon">📋</div>
+      <div class="import-label">Importovat JSON zálohu</div>
+      <div class="import-hint">Obnoví data z exportovaného .json souboru</div>
+    </div>
     <div class="import-zone" onclick="document.getElementById('gedcom-file').click()">
       <input type="file" id="gedcom-file" accept=".ged,.gedcom" onchange="handleGEDCOM(event)">
       <div class="import-icon">📄</div>
-      <div class="import-label">Klikněte pro výběr souboru</div>
+      <div class="import-label">Importovat GEDCOM</div>
       <div class="import-hint">Přijímá formát .ged nebo .gedcom</div>
     </div>
-    <p style="font-size:0.8rem;color:var(--text3);text-align:center;line-height:1.6">Exportujte GEDCOM z <strong>Ancestry</strong>, <strong>MyHeritage</strong>, <strong>Gramps</strong>, <strong>FamilySearch</strong> nebo <strong>MacFamilyTree</strong>.</p>
+    <p style="font-size:0.8rem;color:var(--text3);text-align:center;line-height:1.6">GEDCOM exportujte z <strong>Ancestry</strong>, <strong>MyHeritage</strong>, <strong>Gramps</strong> nebo <strong>FamilySearch</strong>.</p>
     <div class="form-actions" style="margin-top:14px"><button class="btn btn-outline btn-full" onclick="closeImport()">Zavřít</button></div>
   </div>
 </div>
@@ -596,6 +603,37 @@ let people = [
 ];
 
 // ═══════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════
+function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Ensure all people have the sibids field (older data may lack it)
+function normalizePeople(arr){
+  return arr.map(p=>({sibids:[], ...p,
+    pids: Array.isArray(p.pids)?p.pids:[],
+    sids: Array.isArray(p.sids)?p.sids:[],
+    cids: Array.isArray(p.cids)?p.cids:[],
+    id: String(p.id||''), fn: String(p.fn||'?'), ln: String(p.ln||'?'),
+    gender: p.gender||'X'
+  }));
+}
+
+// Returns true if making `personId` a child of `ancestorId` would create a cycle
+function wouldCreateCycle(personId, ancestorId){
+  const visited=new Set();
+  const queue=[personId];
+  while(queue.length){
+    const curr=queue.shift();
+    if(curr===ancestorId) return true;
+    if(visited.has(curr)) continue;
+    visited.add(curr);
+    const p=people.find(x=>x.id===curr);
+    if(p) p.cids.forEach(c=>queue.push(c));
+  }
+  return false;
+}
+
+// ═══════════════════════════════
 //  LAYOUT
 // ═══════════════════════════════
 const NW=170, NH=84, HG=46, VG=104;
@@ -629,6 +667,22 @@ function birthdayStatus(p) {
   const diff = Math.round((bDate - today) / 86400000);
   if(diff === 0) return 'today';
   if(diff <= 7) return 'soon';
+  return null;
+}
+
+// Anniversary check — returns 'today', 'soon' (within 7 days), or null
+function anniversaryStatus(dateStr) {
+  if(!dateStr) return null;
+  const full = String(dateStr).match(/(\d{1,2})\.(\d{1,2})\.\d{4}/);
+  if(!full) return null;
+  const aDay=parseInt(full[1]), aMon=parseInt(full[2]);
+  const now=new Date();
+  const today=new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const aDate=new Date(now.getFullYear(), aMon-1, aDay);
+  if(aDate < today) aDate.setFullYear(now.getFullYear()+1);
+  const diff=Math.round((aDate-today)/86400000);
+  if(diff===0) return 'today';
+  if(diff<=7) return 'soon';
   return null;
 }
 
@@ -920,11 +974,14 @@ function renderTree() {
       const x1=pp.x+NW/2;
       const x2=sp.x-NW/2;
       const mx=(x1+x2)/2, my=(pp.y+sp.y)/2;
-      const l1=S('line',{x1:String(x1),y1:String(my),x2:String(mx-11),y2:String(my),stroke:'#E8436B','stroke-width':'1.5','stroke-dasharray':'5 3','stroke-linecap':'round',opacity:'0.45'});
-      const l2=S('line',{x1:String(mx+11),y1:String(my),x2:String(x2),y2:String(my),stroke:'#E8436B','stroke-width':'1.5','stroke-dasharray':'5 3','stroke-linecap':'round',opacity:'0.45'});
-      const hbg=S('circle',{cx:String(mx),cy:String(my),r:'10',fill:'var(--surface)',stroke:'#F9C0CE','stroke-width':'1.5'});
-      const ht=ST('♥',{x:String(mx),y:String(my),'text-anchor':'middle','dominant-baseline':'central','font-size':'11',fill:'#E8436B',opacity:'0.85'});
-      cl.appendChild(l1); cl.appendChild(l2); cl.appendChild(hbg); cl.appendChild(ht);
+      const wd = p.weddingDate || bi[sid]?.weddingDate || null;
+      const anniv = anniversaryStatus(wd);
+      if(anniv==='today'){
+        const ag=S('line',{x1:String(x1),y1:String(my),x2:String(x2),y2:String(my),stroke:'#F0A500','stroke-width':'10',opacity:'0.18','stroke-linecap':'round'});
+        cl.appendChild(ag);
+      }
+      const l1=S('line',{x1:String(x1),y1:String(my),x2:String(x2),y2:String(my),stroke:'#E8436B','stroke-width':'1.5','stroke-dasharray':'5 3','stroke-linecap':'round',opacity:'0.45'});
+      cl.appendChild(l1);
     });
   });
 
@@ -980,6 +1037,18 @@ function renderTree() {
       const bdayIcon = ST(bday==='today' ? '🎂' : '🎁', {x:'14', y:'16', 'text-anchor':'middle', 'font-size':'20'});
       g.appendChild(bdayIcon);
       if(bday==='today') {
+        const glow = S('rect',{x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:'#F0A500','stroke-width':'2.5',opacity:'0.8'});
+        g.insertBefore(glow, g.firstChild);
+      }
+    }
+
+    // Anniversary indicator
+    const anniv = anniversaryStatus(p.weddingDate);
+    if(anniv) {
+      const iconY = bday ? '34' : '16';
+      const annivIcon = ST('💍', {x:'14', y:iconY, 'text-anchor':'middle', 'font-size':'20'});
+      g.appendChild(annivIcon);
+      if(anniv==='today' && !bday) {
         const glow = S('rect',{x:'-2',y:'-2',width:String(NW+4),height:String(NH+4),rx:'16',fill:'none',stroke:'#F0A500','stroke-width':'2.5',opacity:'0.8'});
         g.insertBefore(glow, g.firstChild);
       }
@@ -1104,7 +1173,7 @@ function renderStats() {
 
   const barRow = (name, count, max, color) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <div style="width:120px;font-size:0.88rem;font-weight:600;color:var(--text);flex-shrink:0">${name}</div>
+      <div style="width:120px;font-size:0.88rem;font-weight:600;color:var(--text);flex-shrink:0">${escHtml(name)}</div>
       <div style="flex:1;background:var(--surface2);border-radius:20px;height:22px;overflow:hidden">
         <div style="height:100%;width:${Math.round(count/max*100)}%;background:${color};border-radius:20px;display:flex;align-items:center;padding:0 8px">
           <span style="font-size:0.75rem;font-weight:700;color:white">${count}</span>
@@ -1272,6 +1341,22 @@ function showInfo(id){
     bdayEl.style.display = 'none';
   }
 
+  // Wedding anniversary notice
+  const annivEl = document.getElementById('info-anniv') || (()=>{
+    const el=document.createElement('div'); el.id='info-anniv';
+    el.style.cssText='text-align:center;font-size:0.82rem;font-weight:600;padding:6px 10px;border-radius:10px;margin-bottom:8px;display:none';
+    document.getElementById('info-bday').after(el); return el;
+  })();
+  const wd = p.weddingDate;
+  const anniv = anniversaryStatus(wd);
+  if(wd && anniv) {
+    const wYear = yearFrom(wd);
+    const years = wYear ? new Date().getFullYear() - wYear : null;
+    const yearsStr = years ? ` (${years} let)` : '';
+    if(anniv==='today'){ annivEl.textContent=`💍 Dnes je výročí svatby!${yearsStr}`; annivEl.style.background='#FEF3DB'; annivEl.style.color='#7A5000'; annivEl.style.display=''; }
+    else { annivEl.textContent=`💍 Brzy výročí svatby${yearsStr}`; annivEl.style.background='#ECF0FD'; annivEl.style.color='#1A2E99'; annivEl.style.display=''; }
+  } else { annivEl.style.display='none'; }
+
   const parents=p.pids.map(x=>bi[x]).filter(Boolean);
   const spouses=p.sids.map(x=>bi[x]).filter(Boolean);
   const children=p.cids.map(x=>bi[x]).filter(Boolean);
@@ -1279,7 +1364,9 @@ function showInfo(id){
 
   const rels=document.getElementById('info-relations'); rels.innerHTML='';
   const add=(lbl,list)=>{ if(!list.length) return; const dt=document.createElement('dt'); dt.textContent=lbl; rels.appendChild(dt); const dd=document.createElement('dd'); dd.textContent=list.map(x=>`${x.fn} ${x.ln}`).join(', '); rels.appendChild(dd); };
-  add('Rodiče',parents); add(spouses.length>1?'Partneři':'Partner/ka',spouses); add('Děti',children); add('Sourozenci',siblings);
+  add('Rodiče',parents); add(spouses.length>1?'Partneři':'Partner/ka',spouses);
+  if(wd){ const wYear=yearFrom(wd); const yrs=wYear?new Date().getFullYear()-wYear:null; const dt=document.createElement('dt'); dt.textContent='Datum svatby'; rels.appendChild(dt); const dd=document.createElement('dd'); dd.textContent=wd+(yrs?` · ${yrs} let`:''); rels.appendChild(dd); }
+  add('Děti',children); add('Sourozenci',siblings);
 
   const noteEl=document.getElementById('info-note');
   if(p.note&&p.note.trim()){ noteEl.textContent=p.note; noteEl.style.display=''; } else { noteEl.style.display='none'; }
@@ -1291,14 +1378,20 @@ function closeInfo(){ selId=null; document.getElementById('info-panel').classLis
 // ═══════════════════════════════
 //  SEARCH
 // ═══════════════════════════════
+let _searchTimer;
 function doSearch(){
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(_runSearch, 180);
+}
+function _runSearch(){
   const q=document.getElementById('search-input').value.trim().toLowerCase();
   const box=document.getElementById('search-results');
   if(!q){ box.classList.remove('visible'); return; }
   const matches=people.filter(p=>`${p.fn} ${p.ln}`.toLowerCase().includes(q)||(p.birth&&String(p.birth).includes(q))||(p.place&&p.place.toLowerCase().includes(q)));
   if(!matches.length){ box.innerHTML='<div style="padding:14px;text-align:center;font-size:0.82rem;color:var(--text3)">Žádné výsledky</div>'; box.classList.add('visible'); return; }
   const pos=layout;
-  box.innerHTML=matches.slice(0,8).map(p=>{ const d=pos[p.id]?.d??0; const col=gc(d); return `<div class="sr-item" onclick="pickSearch('${p.id}')"><div class="sr-dot" style="background:${col.m}">${initials(p.fn,p.ln)}</div><div><div class="sr-name">${p.fn} ${p.ln}</div><div class="sr-sub">${lifespan(p)}${p.place?' · '+p.place:''}</div></div></div>`; }).join('');
+  box.innerHTML=matches.slice(0,8).map(p=>{ const d=pos[p.id]?.d??0; const col=gc(d); return `<div class="sr-item" data-pid="${escHtml(p.id)}"><div class="sr-dot" style="background:${col.m}">${escHtml(initials(p.fn,p.ln))}</div><div><div class="sr-name">${escHtml(p.fn)} ${escHtml(p.ln)}</div><div class="sr-sub">${escHtml(lifespan(p))}${p.place?' · '+escHtml(p.place):''}</div></div></div>`; }).join('');
+  box.querySelectorAll('.sr-item').forEach(el=>el.addEventListener('mousedown',()=>pickSearch(el.dataset.pid)));
   box.classList.add('visible');
 }
 function pickSearch(id){ document.getElementById('search-input').value=''; document.getElementById('search-results').classList.remove('visible'); selectPerson(id); }
@@ -1349,16 +1442,36 @@ function populateSelects(editing){
     const mId=editing.pids.find(id=>bi[id]&&bi[id].gender==='F');
     if(fId) document.getElementById('f-father').value=fId;
     if(mId) document.getElementById('f-mother').value=mId;
-    if(editing.sids[0]) document.getElementById('f-spouse').value=editing.sids[0];
+    if(editing.sids[0]){ document.getElementById('f-spouse').value=editing.sids[0]; toggleWedding(editing.sids[0]); if(editing.weddingDate) document.getElementById('f-wedding').value=editing.weddingDate; }
     // find existing sibling (shares same parents, or via explicit sibids)
     const sibId = people.find(q=>q.id!==editing.id && q.pids.some(pid=>editing.pids.includes(pid)))?.id
                || (editing.sibids||[])[0] || '';
     if(sibId) document.getElementById('f-sibling').value=sibId;
   }
 }
-function handlePhotoUpload(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ photoData=ev.target.result; const prev=document.getElementById('f-photo-preview'); prev.innerHTML=`<img src="${photoData}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }; r.readAsDataURL(f); }
+function handlePhotoUpload(e){
+  const f=e.target.files[0]; if(!f) return;
+  if(f.size > 5*1024*1024){ toast('Foto je příliš velké (max 5 MB)'); e.target.value=''; return; }
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=200;
+      const scale=Math.min(1, MAX/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      photoData=c.toDataURL('image/jpeg',0.82);
+      const prev=document.getElementById('f-photo-preview');
+      prev.innerHTML=`<img src="${photoData}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
 function toggleMaiden(g){ document.getElementById('maiden-group').style.display=(g==='F')?'':'none'; }
-function closeModal(){ document.getElementById('add-modal').classList.remove('visible'); ['f-fn','f-ln','f-maiden','f-birth','f-death','f-place','f-note'].forEach(id=>{ document.getElementById(id).value=''; }); ['f-gender','f-father','f-mother','f-sibling','f-spouse'].forEach(id=>{ document.getElementById(id).selectedIndex=0; }); toggleMaiden('M'); photoData=''; document.getElementById('f-photo-preview').innerHTML='📷'; }
+function closeModal(){ document.getElementById('add-modal').classList.remove('visible'); ['f-fn','f-ln','f-maiden','f-birth','f-death','f-place','f-note','f-wedding'].forEach(id=>{ document.getElementById(id).value=''; }); ['f-gender','f-father','f-mother','f-sibling','f-spouse'].forEach(id=>{ document.getElementById(id).selectedIndex=0; }); toggleMaiden('M'); toggleWedding(''); photoData=''; document.getElementById('f-photo-preview').innerHTML='📷'; }
+function toggleWedding(val){ document.getElementById('wedding-group').style.display=val?'':'none'; }
 function savePerson(){
   const fn=document.getElementById('f-fn').value.trim();
   const ln=document.getElementById('f-ln').value.trim();
@@ -1374,6 +1487,15 @@ function savePerson(){
   const mId=document.getElementById('f-mother').value;
   const sibId=document.getElementById('f-sibling').value;
   const spId=document.getElementById('f-spouse').value;
+  const weddingDate=document.getElementById('f-wedding').value.trim()||null;
+  if(weddingDate && !/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(weddingDate)){ toast('Datum sňatku zadej ve formátu d.m.rrrr (např. 15.6.2001)'); return; }
+
+  // check for circular parent-child reference (only when editing)
+  if(eid) {
+    for(const pid of [fId,mId].filter(Boolean)){
+      if(wouldCreateCycle(pid, eid)){ toast('Nelze přiřadit rodiče — vznikl by cyklus v rodokménu'); return; }
+    }
+  }
 
   // if sibling selected and no parents set, inherit sibling's parents
   let resolvedPids = [fId,mId].filter(Boolean);
@@ -1389,13 +1511,13 @@ function savePerson(){
     const p=people.find(x=>x.id===eid); if(!p) return;
     // remove old relations
     p.pids.forEach(pid=>{ const par=people.find(x=>x.id===pid); if(par) par.cids=par.cids.filter(c=>c!==eid); });
-    p.sids.forEach(sid=>{ const sp=people.find(x=>x.id===sid); if(sp) sp.sids=sp.sids.filter(s=>s!==eid); });
+    p.sids.forEach(sid=>{ const sp=people.find(x=>x.id===sid); if(sp){ sp.sids=sp.sids.filter(s=>s!==eid); sp.weddingDate=null; } });
     (p.sibids||[]).forEach(sid=>{ const sb=people.find(x=>x.id===sid); if(sb&&sb.sibids) sb.sibids=sb.sibids.filter(s=>s!==eid); });
-    Object.assign(p,{fn,ln,maiden,birth,death,gender,place,note,pids,sids,sibids:[],photo:photoData||p.photo});
+    Object.assign(p,{fn,ln,maiden,birth,death,gender,place,note,pids,sids,sibids:[],weddingDate,photo:photoData||p.photo});
     toast(`${fn} ${ln} upraven`);
   } else {
     const id='p_'+Date.now();
-    people.push({id,fn,ln,maiden,birth,death,gender,place,note,pids,sids,sibids:[],cids:[],photo:photoData||''});
+    people.push({id,fn,ln,maiden,birth,death,gender,place,note,pids,sids,sibids:[],cids:[],weddingDate,photo:photoData||''});
     toast(`${fn} ${ln} přidán`);
   }
   // apply new relations
@@ -1417,7 +1539,7 @@ function savePerson(){
       }
     }
   }
-  if(spId){ const s=people.find(p=>p.id===spId); if(s&&!s.sids.includes(eid2)) s.sids.push(eid2); }
+  if(spId){ const s=people.find(p=>p.id===spId); if(s&&!s.sids.includes(eid2)) s.sids.push(eid2); if(s&&weddingDate) s.weddingDate=weddingDate; }
   closeModal(); saveData(); renderTree();
 }
 
@@ -1428,7 +1550,7 @@ function deleteSelected(){
   const p=people.find(x=>x.id===selId); if(!p) return;
   if(!confirm(`Opravdu smazat ${p.fn} ${p.ln}?`)) return;
   // remove references
-  people.forEach(q=>{ q.pids=q.pids.filter(x=>x!==selId); q.sids=q.sids.filter(x=>x!==selId); q.cids=q.cids.filter(x=>x!==selId); if(q.sibids) q.sibids=q.sibids.filter(x=>x!==selId); });
+  people.forEach(q=>{ if(q.sids.includes(selId)) q.weddingDate=null; q.pids=q.pids.filter(x=>x!==selId); q.sids=q.sids.filter(x=>x!==selId); q.cids=q.cids.filter(x=>x!==selId); if(q.sibids) q.sibids=q.sibids.filter(x=>x!==selId); });
   people=people.filter(x=>x.id!==selId);
   toast(`${p.fn} ${p.ln} smazán`);
   selId=null; closeInfo(); saveData(); renderTree();
@@ -1438,7 +1560,36 @@ function deleteSelected(){
 //  GEDCOM IMPORT
 // ═══════════════════════════════
 function showImport(){ document.getElementById('import-modal').classList.add('visible'); }
-function closeImport(){ document.getElementById('import-modal').classList.remove('visible'); }
+function closeImport(){
+  document.getElementById('import-modal').classList.remove('visible');
+  // reset file inputs so the same file can be re-imported
+  document.getElementById('json-file').value = '';
+  document.getElementById('gedcom-file').value = '';
+}
+
+// ── JSON IMPORT ──
+function handleJSON(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const loaded = JSON.parse(ev.target.result);
+      if (!Array.isArray(loaded) || loaded.length === 0) { toast('Soubor neobsahuje platná data (prázdné pole)'); return; }
+      const invalid = loaded.filter(p => !p || typeof p !== 'object' || !p.id || !p.fn || !p.ln);
+      if (invalid.length) { toast(`Import selhal: ${invalid.length} záznamů s chybějícími poli (id/fn/ln)`); return; }
+      if (!confirm(`Importovat ${loaded.length} osob? Tím se přepíší aktuální data.`)) return;
+      people = normalizePeople(loaded);
+      saveData();
+      renderTree();
+      closeImport();
+      toast(`Importováno ${loaded.length} osob z JSON`);
+    } catch(err) {
+      toast('Chyba JSON: ' + (err.message||'neznámá chyba').slice(0,60));
+    }
+  };
+  r.readAsText(f, 'UTF-8');
+}
 function handleGEDCOM(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ parseGEDCOM(ev.target.result); closeImport(); }; r.readAsText(f,'UTF-8'); }
 function parseGEDCOM(text){
   const lines=text.split(/\r?\n/); const inds={}, fams={};
@@ -1462,6 +1613,8 @@ function parseGEDCOM(text){
       else if(tag==='DATE'){ const yr=parseInt(val.match(/\d{4}/)?.[0]); if(!isNaN(yr)){ if(bCtx) ind.birth=yr; else if(dCtx) ind.death=yr; } }
       else if(tag==='PLAC'&&bCtx&&!ind.place) ind.place=val;
       else if(tag==='NOTE'||tag==='TEXT') ind.note=(ind.note?ind.note+'\n':'')+val;
+      else if(tag==='CONT') ind.note=(ind.note?ind.note+'\n':'')+val;
+      else if(tag==='CONC') ind.note=(ind.note||'')+val;
     } else if(ct==='F'&&fams[cur]){
       if(tag==='HUSB') fams[cur].husb=val.replace(/@/g,'');
       else if(tag==='WIFE') fams[cur].wife=val.replace(/@/g,'');
@@ -1482,7 +1635,7 @@ function parseGEDCOM(text){
       }
     });
   });
-  people=Object.values(inds); selId=null; tx={x:0,y:0,scale:0.9};
+  people=normalizePeople(Object.values(inds)); selId=null; tx={x:0,y:0,scale:0.9};
   document.getElementById('info-panel').classList.remove('visible');
   renderTree();
   setTimeout(resetView,80);
@@ -1534,7 +1687,7 @@ function exportGEDCOM(){
     if(p.birth){ lines.push('1 BIRT'); lines.push(`2 DATE ${p.birth}`); }
     if(p.death){ lines.push('1 DEAT'); lines.push(`2 DATE ${p.death}`); }
     if(p.place) lines.push(`2 PLAC ${p.place}`);
-    if(p.note) lines.push(`1 NOTE ${p.note.replace(/\n/g,' ')}`);
+    if(p.note){ const noteLines=p.note.split('\n'); lines.push(`1 NOTE ${noteLines[0]}`); noteLines.slice(1).forEach(l=>lines.push(`2 CONT ${l}`)); }
   });
   // Families — group couples
   const done=new Set();
@@ -1597,7 +1750,7 @@ function loadLocal() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
     const d = JSON.parse(raw);
-    if (Array.isArray(d) && d.length) { people = d; return true; }
+    if (Array.isArray(d) && d.length) { people = normalizePeople(d); return true; }
   } catch(e) {}
   return false;
 }
@@ -1652,7 +1805,7 @@ async function loadFromHA() {
     if (!raw) { updateHAStatusBtn(true); return false; }
     const loaded = JSON.parse(raw);
     if (Array.isArray(loaded) && loaded.length) {
-      people = loaded;
+      people = normalizePeople(loaded);
       saveLocal();
       updateHAStatusBtn(true);
       return true;
@@ -1735,7 +1888,7 @@ function loadFromHash(){
     const b64=hash.slice(6);
     const json=decodeURIComponent(escape(atob(b64)));
     const loaded=JSON.parse(json);
-    if(Array.isArray(loaded)&&loaded.length){ people=loaded; saveData(); toast(`Načteno ${loaded.length} osob z odkazu`); return true; }
+    if(Array.isArray(loaded)&&loaded.length){ people=normalizePeople(loaded); saveData(); toast(`Načteno ${loaded.length} osob z odkazu`); return true; }
   } catch(e){ console.warn('Hash parse error',e); }
   return false;
 }
@@ -1771,8 +1924,10 @@ window.addEventListener('load', async () => {
     if (!fromHA) {
       if (loadLocal()) {
         toast(`Načteno ${people.length} osob z lokální paměti`);
+      } else {
+        // ukázková data — upozorni uživatele
+        setTimeout(() => toast('⚠️ Zobrazena ukázková data. Importuj svůj JSON pro obnovení dat.'), 1500);
       }
-      // else: ukázková data zůstávají
     } else {
       toast(`Načteno ${people.length} osob z Home Assistantu`);
     }

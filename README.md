@@ -1,7 +1,7 @@
 # 🌳 Rodinný strom pro Home Assistant
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-panel-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
-[![Verze](https://img.shields.io/badge/verze-3.2.0-brightgreen)](https://github.com/)
+[![Verze](https://img.shields.io/badge/verze-3.3.0-brightgreen)](https://github.com/)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 [![Jazyk](https://img.shields.io/badge/jazyk-čeština-red)](README.md)
 [![HTML](https://img.shields.io/badge/technologie-HTML%20%2F%20JS%20%2F%20SVG-orange)](family-tree-v3.html)
@@ -18,14 +18,14 @@
 | 🎨 **Barevné rodinné větve** | Každá větev má vlastní barvu, spojovací čáry s glow efektem |
 | 🔍 **Vyhledávání** | Živé vyhledávání podle jména, roku i místa |
 | 👤 **Správa osob** | Přidání, editace, mazání s formulářem |
-| 📷 **Fotografie** | Nahrání fotek přímo do aplikace (base64) |
+| 📷 **Fotografie** | Nahrání fotek přímo do aplikace (max 5 MB, automaticky zmenšeny) |
 | 📝 **Poznámky** | Životopis, povolání, dokumenty pro každou osobu |
 | 👨‍👩‍👧 **Sourozenci** | Přiřazení sourozence i bez společných rodičů |
 | 🎂 **Narozeniny** | Indikátor dnes / brzy na kartičce i v detailu |
 | 📅 **Časová osa** | Timeline všech osob podle roku narození |
 | 📊 **Statistiky** | Počty osob, generací, rodin, jmen, příjmení, pohlaví |
 | 🌙 **Tmavý režim** | Přepínač světlé / tmavé téma, uloženo v localStorage |
-| 📂 **Import GEDCOM** | Import z Ancestry, MyHeritage, Gramps, FamilySearch |
+| 📂 **Import dat** | JSON záloha nebo GEDCOM (Ancestry, MyHeritage, Gramps, FamilySearch) |
 | 📤 **Export** | JSON, GEDCOM, CSV, Tisk / PDF |
 | 🔗 **Sdílení** | Sdílení celého stromu přes URL (data v Base64 hashu) |
 | 💾 **Home Assistant sync** | Ukládání dat jako `sensor.family_tree` přes REST API |
@@ -102,6 +102,8 @@ Aplikace umí ukládat data přímo na HA server jako entitu `sensor.family_tree
 
 Bez HA konfigurace se data ukládají pouze do `localStorage` prohlížeče.
 
+> **Pozor:** Některé prohlížeče (Edge, Chrome) mohou mazat localStorage při zavření. Pokud nepoužíváš HA synchronizaci, doporučujeme pravidelně exportovat zálohu přes **📤 Export → JSON** a v případě ztráty dat obnovit přes **📂 Import → JSON záloha**.
+
 ---
 
 ## 📖 Použití
@@ -130,17 +132,22 @@ Sourozenecký vztah lze nastavit dvěma způsoby:
 - **Se společnými rodiči** — stačí vybrat stejné rodiče, sourozenci se detekují automaticky
 - **Bez rodičů** (kořenová úroveň) — vyber sourozence v poli „Sourozenec / Sourozenka", propojení se uloží explicitně
 
-### Import GEDCOM
+### Import dat
 
-1. Exportuj GEDCOM z Ancestry, MyHeritage, Gramps nebo FamilySearch
-2. Klikni na **📂 GEDCOM** v hlavičce
-3. Vyber soubor `.ged` nebo `.gedcom`
+Klikni na **📂 Import** v hlavičce:
+
+| Typ | Použití |
+|-----|---------|
+| **JSON záloha** | Obnov data z dříve exportovaného `.json` souboru |
+| **GEDCOM** | Import `.ged` / `.gedcom` z Ancestry, MyHeritage, Gramps, FamilySearch |
+
+> Import přepíše aktuální data — aplikace vždy požádá o potvrzení.
 
 ### Export dat
 
 | Formát | Obsah |
 |--------|-------|
-| **JSON** | Kompletní data včetně fotek (base64) |
+| **JSON** | Kompletní data včetně fotek (base64) — vhodné jako záloha |
 | **GEDCOM** | Standardní formát pro import do jiných aplikací |
 | **CSV** | Tabulka osob pro Excel / Google Sheets |
 | **Tisk / PDF** | Tisk aktuálního pohledu stromu |
@@ -207,6 +214,18 @@ Aplikace je záměrně navržena jako **jeden HTML soubor bez závislostí**:
 ---
 
 ## 📝 Changelog
+
+### v3.3.0
+- Import JSON zálohy — obnova dat ze souboru bez HA
+- Varování při zobrazení ukázkových dat (ztráta dat v localStorage)
+- Bezpečnostní opravy: XSS ochrana ve vyhledávání a statistikách
+- Validace struktury při importu JSON (kontrola povinných polí)
+- Detekce cyklických relací — nelze nastavit osobu jako vlastního předka
+- Debounce vyhledávání (180 ms) — plynulejší odezva
+- Automatický resize fotek na max 200×200 px, limit 5 MB
+- Validace formátu data sňatku (`d.m.rrrr`)
+- GEDCOM: správný export/import víceřádkových poznámek (`CONT`/`CONC`)
+- Normalizace dat při načtení — `sibids` doplněno i u starších záznamů
 
 ### v3.2.0
 - Sourozenci bez společných rodičů (explicitní `sibids` propojení)
